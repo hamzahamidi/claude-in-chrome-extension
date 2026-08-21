@@ -1,0 +1,6 @@
+# The private key pins the extension id. Anyone holding it can build an
+# extension that impersonates this one, so it never belongs in the repository.
+*.pem
+*.crx
+*.zip
+node_modules/
