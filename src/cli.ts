@@ -48,9 +48,24 @@ async function main(): Promise<number> {
       process.stderr.write(`skipped ${browser}: ${reason}\n`);
     }
     if (result.platform === 'win32') {
-      process.stdout.write('On Windows the host is declared in the registry rather than on disk. '
-        + `Add a REG_SZ default value under HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${result.hostName} `
-        + 'pointing at the manifest file.\n');
+      const manifest = result.written[0]?.[1];
+      if (manifest === undefined) { return EXIT.UNAVAILABLE; }
+      // Windows finds the host through the registry, so the file above is only
+      // half the job. These are the exact commands for the manifest that was
+      // just written, rather than a sentence about a file the caller has to
+      // locate: every browser key points at the same manifest.
+      process.stdout.write(
+        '\nOn Windows the host is found through the registry. Run these, for each browser you use:\n\n');
+      for (const key of [
+        'Software\\Google\\Chrome',
+        'Software\\Chromium',
+        'Software\\Microsoft\\Edge',
+        'Software\\BraveSoftware\\Brave-Browser',
+      ]) {
+        process.stdout.write(`  reg add "HKCU\\${key}\\NativeMessagingHosts\\${result.hostName}" /ve /t REG_SZ /d "${manifest}" /f\n`);
+      }
+      process.stdout.write('\nThen load extension\\ at chrome://extensions with Developer mode on.\n');
+      process.stdout.write('This path is written but untested: please report what happens.\n');
       return EXIT.OK;
     }
     if (result.written.length === 0) { return EXIT.UNAVAILABLE; }

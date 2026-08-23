@@ -7,7 +7,7 @@
 // own directory.
 import { chmodSync, existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 as windowsPath } from 'node:path';
 
 // Reverse DNS on the GitHub namespace rather than a domain, because that is the
 // ownership actually demonstrable here. Chrome reads this string by exact match
@@ -59,9 +59,13 @@ export function browserDirs(
     ];
   }
   if (platform === 'win32') {
-    // Windows declares this in the registry rather than on disk, so the caller
-    // is told what to do instead of being silently skipped.
-    return [];
+    // Windows selects the host through the registry rather than through a
+    // per-browser directory, so one location holds the manifest and every
+    // browser's registry key points at it. It still has to be WRITTEN
+    // somewhere: returning nothing here is what left `install` telling people
+    // to point the registry at a manifest it had never created.
+    const appData = process.env['LOCALAPPDATA'] ?? windowsPath.join(home, 'AppData', 'Local');
+    return [['Windows', windowsPath.join(appData, 'yoke')]];
   }
   const config = process.env['XDG_CONFIG_HOME'] ?? join(home, '.config');
   return [
@@ -110,8 +114,19 @@ function stableNodePath(): string {
   return exact;
 }
 
-/** The launcher's name, alongside the manifest that points at it. */
-const LAUNCHER = process.platform === 'win32' ? 'yoke-host.bat' : 'yoke-host.sh';
+/**
+ * The launcher's name and the path rules for a platform.
+ *
+ * Taken from the platform being installed for, never from process.platform.
+ * These functions exist so the Windows path can be exercised from any machine,
+ * and reading the host's platform instead made it untestable, which is how it
+ * came to write a manifest naming a launcher it had not created.
+ */
+const launcherName = (platform: NodeJS.Platform): string =>
+  (platform === 'win32' ? 'yoke-host.bat' : 'yoke-host.sh');
+
+const pathsFor = (platform: NodeJS.Platform): { join: (...parts: string[]) => string } =>
+  (platform === 'win32' ? windowsPath : { join });
 
 /**
  * Writes the launcher into the same directory as the manifest that names it.
@@ -126,10 +141,11 @@ const LAUNCHER = process.platform === 'win32' ? 'yoke-host.bat' : 'yoke-host.sh'
 function writeLauncher(
   dir: string,
   hostPath: string,
+  platform: NodeJS.Platform,
   nodePath: string = stableNodePath(),
 ): string {
-  const launcher = join(dir, LAUNCHER);
-  if (process.platform === 'win32') {
+  const launcher = pathsFor(platform).join(dir, launcherName(platform));
+  if (platform === 'win32') {
     writeFileSync(launcher, `@echo off\r\n"${nodePath}" "${hostPath}" %*\r\n`);
     return launcher;
   }
@@ -166,14 +182,22 @@ export function install({
   const skipped: InstallResult['skipped'] = [];
 
   for (const [browser, dir] of browserDirs(platform, home)) {
-    if (!existsSync(dirname(dir))) { skipped.push([browser, 'not installed']); continue; }
+    // The parent-exists check asks "is this browser installed", so it only makes
+    // sense for a directory the browser owns. On Windows the directory is ours,
+    // named by a registry value rather than found by a browser, so skipping it
+    // for a missing parent would mean never writing the manifest at all.
+    const browserOwnsIt = platform !== 'win32';
+    if (browserOwnsIt && !existsSync(dirname(dir))) {
+      skipped.push([browser, 'not installed']);
+      continue;
+    }
     try {
       mkdirSync(dir, { recursive: true });
       // The manifest points at a launcher rather than at the host, so Chrome
       // never has to find node on a PATH it does not have. Both live here, so
       // neither can outlive the other.
-      const launcher = writeLauncher(dir, hostPath);
-      const file = join(dir, `${HOST_NAME}.json`);
+      const launcher = writeLauncher(dir, hostPath, platform);
+      const file = pathsFor(platform).join(dir, `${HOST_NAME}.json`);
       writeFileSync(file, `${JSON.stringify(manifestFor(launcher), null, 2)}\n`);
       written.push([browser, file]);
     } catch (failure) {
@@ -189,11 +213,11 @@ export function uninstall({
 }: { platform?: NodeJS.Platform; home?: string } = {}): { removed: Array<[string, string]> } {
   const removed: Array<[string, string]> = [];
   for (const [browser, dir] of browserDirs(platform, home)) {
-    const file = join(dir, `${HOST_NAME}.json`);
+    const file = pathsFor(platform).join(dir, `${HOST_NAME}.json`);
     try { unlinkSync(file); removed.push([browser, file]); } catch { /* not there */ }
     // The launcher lives beside the manifest, so it goes with it rather than
     // being left behind pointing at a host nothing will ask for.
-    try { unlinkSync(join(dir, LAUNCHER)); } catch { /* not there */ }
+    try { unlinkSync(pathsFor(platform).join(dir, launcherName(platform))); } catch { /* not there */ }
   }
   return { removed };
 }
