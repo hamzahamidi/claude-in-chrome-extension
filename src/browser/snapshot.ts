@@ -64,10 +64,17 @@ export function collectSnapshot(maxElements: number): RawSnapshot {
     if (tag === 'input') {
       const type = (element as HTMLInputElement).type;
       if (type === 'checkbox' || type === 'radio' || type === 'submit' || type === 'button') { return type; }
+      // Its own role rather than textbox, so a password field stays visible to a
+      // caller that has to type into it while its value can be withheld.
+      // Collapsing it into textbox is what made the value impossible to redact.
+      if (type === 'password') { return 'password'; }
       return 'textbox';
     }
     return 'generic';
   };
+
+  const isSecret = (element: Element): boolean =>
+    element.tagName.toLowerCase() === 'input' && (element as HTMLInputElement).type === 'password';
 
   const registry = new Map<string, Element>();
   const elements: RawSnapshot['elements'] = [];
@@ -86,7 +93,7 @@ export function collectSnapshot(maxElements: number): RawSnapshot {
       role: roleOf(element),
       name: nameOf(element),
       tag: element.tagName.toLowerCase(),
-      ...(input.value ? { value: String(input.value).slice(0, 80) } : {}),
+      ...(input.value && !isSecret(element) ? { value: String(input.value).slice(0, 80) } : {}),
       ...(input.disabled ? { disabled: true } : {}),
       // Centre point, kept for the click path and never shown to a caller.
       x: Math.round(rect.left + rect.width / 2),
@@ -100,21 +107,56 @@ export function collectSnapshot(maxElements: number): RawSnapshot {
   return { url: location.href, title: document.title, elements };
 }
 
+/** What sits at the point a click is about to be sent to. */
+export interface Located {
+  x: number;
+  y: number;
+  found: boolean;
+  /**
+   * Whether the topmost element at that point is the one the ref names.
+   * `self` and `nested` both mean the click reaches the named element, because
+   * an event on a descendant or an ancestor still triggers it. `covered` means
+   * something unrelated is on top, which is the cookie banner case.
+   */
+  hit?: 'self' | 'nested' | 'covered' | 'nothing';
+  /** What is actually on top, when it is not the named element. */
+  topmost?: string;
+}
+
 /**
- * Where a reference is now, resolved in the page.
+ * Where a reference is now, resolved in the page, and what is on top of it.
  *
  * Re-read at click time rather than trusted from the snapshot, because a page
  * that scrolled or reflowed since would otherwise be clicked in the wrong place.
+ * The hit test is here rather than in the caller because it has to happen at the
+ * same moment as the measurement: anything later is a different page.
  */
-export function locateRef(ref: string): { x: number; y: number; found: boolean } {
+export function locateRef(ref: string): Located {
   const registry = (window as unknown as { __yokeRefs?: Map<string, Element> }).__yokeRefs;
   const element = registry?.get(ref);
   if (!element) { return { x: 0, y: 0, found: false }; }
   element.scrollIntoView({ block: 'center', inline: 'center' });
   const rect = element.getBoundingClientRect();
+  const x = Math.round(rect.left + rect.width / 2);
+  const y = Math.round(rect.top + rect.height / 2);
+
+  const top = document.elementFromPoint(x, y);
+  const describe = (node: Element): string => {
+    const id = node.id ? `#${node.id}` : '';
+    const first = node.classList.length > 0 ? `.${node.classList[0]}` : '';
+    return `${node.tagName.toLowerCase()}${id}${first}`;
+  };
+
+  let hit: Located['hit'];
+  if (!top) { hit = 'nothing'; } else if (top === element) { hit = 'self'; } else if (
+    element.contains(top) || top.contains(element)
+  ) { hit = 'nested'; } else { hit = 'covered'; }
+
   return {
-    x: Math.round(rect.left + rect.width / 2),
-    y: Math.round(rect.top + rect.height / 2),
+    x,
+    y,
     found: true,
+    hit,
+    ...(hit === 'covered' && top ? { topmost: describe(top) } : {}),
   };
 }
