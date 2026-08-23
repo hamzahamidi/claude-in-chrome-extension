@@ -30,19 +30,6 @@ jobs:
         run: npm run typecheck
       - name: tests
         run: npm test
-      - name: the extension manifest is valid json and keeps its pinned id
-        shell: bash
-        run: |
-          node -e "
-          const m = JSON.parse(require('node:fs').readFileSync('extension/manifest.json','utf8'));
-          const { EXTENSION_ID } = await import('./dist/install.js');
-          const crypto = require('node:crypto');
-          const der = Buffer.from(m.key, 'base64');
-          const hash = crypto.createHash('sha256').update(der).digest();
-          const id = [...hash.subarray(0,16)].map(b=>b.toString(16).padStart(2,'0')).join('')
-            .split('').map(c=>String.fromCharCode(97 + parseInt(c,16))).join('');
-          if (id !== EXTENSION_ID) {
-            throw new Error('manifest key derives id ' + id + ' but install.ts allowlists ' + EXTENSION_ID);
-          }
-          console.log('manifest key derives the allowlisted id:', id);
-          "
+      # Reads dist/install.js, which the tests step builds.
+      - name: the extension manifest keeps its pinned id
+        run: node scripts/check-extension-id.mjs
