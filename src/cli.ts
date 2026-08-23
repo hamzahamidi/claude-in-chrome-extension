@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { install, uninstall } from './install.js';
-import { endpointPath } from './native-host.js';
+import { endpointPath } from './socket-path.js';
 
 const USAGE = `chrome-live - browser automation in the Chrome you are already signed in to.
 

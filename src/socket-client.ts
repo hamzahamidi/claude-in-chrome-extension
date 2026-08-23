@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 
-import { endpointPath } from './native-host.js';
+import { endpointPath } from './socket-path.js';
 import {
   PROTOCOL,
   type ArgsOf,

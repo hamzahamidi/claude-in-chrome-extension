@@ -14,22 +14,12 @@
 // the path namespace plays the same role.
 import { chmodSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 
 import { PROTOCOL, isResponse, type Request, type SocketReply, type SocketRequest } from './protocol.js';
+import { endpointPath } from './socket-path.js';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-
-/** Where the socket lives. Kept out of /tmp so another user cannot pre-create it. */
-export function endpointPath(): string {
-  if (process.platform === 'win32') {
-    return `\\\\.\\pipe\\chrome-live-${process.env['USERNAME'] ?? 'user'}`;
-  }
-  const base = process.env['XDG_RUNTIME_DIR'] ?? join(homedir(), '.cache');
-  return join(base, 'chrome-live', 'extension.sock');
-}
 
 /** 0700, and verified after creation rather than assumed. */
 function prepareDirectory(socketPath: string): void {
@@ -146,8 +136,13 @@ export function main(): void {
   }
 }
 
-// Chrome executes this file directly, so it has to run when it is the entry
-// point and stay importable when it is not.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main();
-}
+// Runs unconditionally, because this file exists only to be executed.
+//
+// It used to be guarded by comparing process.argv[1] to this module's path,
+// which can never match: Chrome invokes a native messaging host with the calling
+// extension's origin as argv[1], not the script path. So the guard was always
+// false, main() never ran, the process exited instantly, and Chrome reported
+// "Native host has exited" with nothing else to go on. An entry point that the
+// runner invokes with unpredictable arguments cannot detect itself from argv, so
+// it should not try.
+main();

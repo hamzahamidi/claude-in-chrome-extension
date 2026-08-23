@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { browserDirs, EXTENSION_ID, HOST_NAME, type HostManifest } from './install.js';
-import { endpointPath } from './native-host.js';
+import { endpointPath } from './socket-path.js';
 import { ask } from './socket-client.js';
 
 export interface Check {
@@ -68,6 +68,16 @@ function checkRegistration(): Check {
     }
     if (!existsSync(manifest.path)) {
       problems.push(`${browser}: points at ${manifest.path}, which does not exist`);
+      continue;
+    }
+    // The launcher names an absolute interpreter precisely so Chrome does not
+    // need a PATH. If that interpreter has since moved, Chrome fails with
+    // nothing but "Native host has exited", so it is checked here instead.
+    const launcher = readFileSync(manifest.path, 'utf8');
+    const interpreter = /exec "([^"]+)"|"([^"]+)" "/.exec(launcher);
+    const node = interpreter?.[1] ?? interpreter?.[2];
+    if (node && !existsSync(node)) {
+      problems.push(`${browser}: its launcher runs ${node}, which no longer exists`);
       continue;
     }
     if (!manifest.allowed_origins.includes(`chrome-extension://${EXTENSION_ID}/`)) {

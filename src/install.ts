@@ -69,6 +69,29 @@ export function browserDirs(
   ];
 }
 
+/**
+ * Writes a launcher that runs the host with an absolute node path.
+ *
+ * Chrome executes the manifest's `path` directly, and a Chrome started from the
+ * Dock or Finder inherits a minimal PATH: on macOS typically
+ * /usr/bin:/bin:/usr/sbin:/sbin. A `#!/usr/bin/env node` shebang therefore fails
+ * to resolve for anyone whose node came from Homebrew, nvm, asdf or Volta, which
+ * is nearly everyone, and the failure surfaces only as "Native host has exited".
+ * Baking in the interpreter that is running this install removes the guess.
+ */
+function writeLauncher(hostPath: string, nodePath: string = process.execPath): string {
+  if (process.platform === 'win32') {
+    // Chrome runs .bat through the shell, and %~dp0 keeps it relocatable.
+    const batch = join(dirname(hostPath), 'chrome-live-host.bat');
+    writeFileSync(batch, `@echo off\r\n"${nodePath}" "${hostPath}" %*\r\n`);
+    return batch;
+  }
+  const launcher = join(dirname(hostPath), 'chrome-live-host.sh');
+  writeFileSync(launcher, `#!/bin/sh\nexec "${nodePath}" "${hostPath}" "$@"\n`, { mode: 0o755 });
+  chmodSync(launcher, 0o755);
+  return launcher;
+}
+
 export const manifestFor = (hostPath: string): HostManifest => ({
   name: HOST_NAME,
   description: 'chrome-live native messaging host',
@@ -91,10 +114,12 @@ export function install({
   if (!existsSync(hostPath)) {
     throw new Error(`the host script is not at ${hostPath}`);
   }
-  // Chrome executes this path directly, so it has to be executable.
   try { chmodSync(hostPath, 0o755); } catch { /* read-only install; reported below */ }
 
-  const body = `${JSON.stringify(manifestFor(hostPath), null, 2)}\n`;
+  // The manifest points at a launcher rather than at the host, so Chrome never
+  // has to find node on a PATH it does not have.
+  const launcher = writeLauncher(hostPath);
+  const body = `${JSON.stringify(manifestFor(launcher), null, 2)}\n`;
   const written: InstallResult['written'] = [];
   const skipped: InstallResult['skipped'] = [];
 
