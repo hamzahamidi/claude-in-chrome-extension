@@ -110,14 +110,29 @@ function stableNodePath(): string {
   return exact;
 }
 
-function writeLauncher(hostPath: string, nodePath: string = stableNodePath()): string {
+/** The launcher's name, alongside the manifest that points at it. */
+const LAUNCHER = process.platform === 'win32' ? 'yoke-host.bat' : 'yoke-host.sh';
+
+/**
+ * Writes the launcher into the same directory as the manifest that names it.
+ *
+ * Not into dist/ next to the host, which is where this used to go and was a
+ * quiet trap: dist/ is build output, so `npm run clean` (which prepublishOnly
+ * runs) deleted the launcher while four browser manifests still pointed at it.
+ * The extension then failed to connect, and the symptom named the extension
+ * rather than the missing file. Here it is created and removed with the manifest
+ * it belongs to, and no build touches it.
+ */
+function writeLauncher(
+  dir: string,
+  hostPath: string,
+  nodePath: string = stableNodePath(),
+): string {
+  const launcher = join(dir, LAUNCHER);
   if (process.platform === 'win32') {
-    // Chrome runs .bat through the shell, and %~dp0 keeps it relocatable.
-    const batch = join(dirname(hostPath), 'yoke-host.bat');
-    writeFileSync(batch, `@echo off\r\n"${nodePath}" "${hostPath}" %*\r\n`);
-    return batch;
+    writeFileSync(launcher, `@echo off\r\n"${nodePath}" "${hostPath}" %*\r\n`);
+    return launcher;
   }
-  const launcher = join(dirname(hostPath), 'yoke-host.sh');
   writeFileSync(launcher, `#!/bin/sh\nexec "${nodePath}" "${hostPath}" "$@"\n`, { mode: 0o755 });
   chmodSync(launcher, 0o755);
   return launcher;
@@ -147,10 +162,6 @@ export function install({
   }
   try { chmodSync(hostPath, 0o755); } catch { /* read-only install; reported below */ }
 
-  // The manifest points at a launcher rather than at the host, so Chrome never
-  // has to find node on a PATH it does not have.
-  const launcher = writeLauncher(hostPath);
-  const body = `${JSON.stringify(manifestFor(launcher), null, 2)}\n`;
   const written: InstallResult['written'] = [];
   const skipped: InstallResult['skipped'] = [];
 
@@ -158,8 +169,12 @@ export function install({
     if (!existsSync(dirname(dir))) { skipped.push([browser, 'not installed']); continue; }
     try {
       mkdirSync(dir, { recursive: true });
+      // The manifest points at a launcher rather than at the host, so Chrome
+      // never has to find node on a PATH it does not have. Both live here, so
+      // neither can outlive the other.
+      const launcher = writeLauncher(dir, hostPath);
       const file = join(dir, `${HOST_NAME}.json`);
-      writeFileSync(file, body);
+      writeFileSync(file, `${JSON.stringify(manifestFor(launcher), null, 2)}\n`);
       written.push([browser, file]);
     } catch (failure) {
       skipped.push([browser, failure instanceof Error ? failure.message : String(failure)]);
@@ -176,6 +191,9 @@ export function uninstall({
   for (const [browser, dir] of browserDirs(platform, home)) {
     const file = join(dir, `${HOST_NAME}.json`);
     try { unlinkSync(file); removed.push([browser, file]); } catch { /* not there */ }
+    // The launcher lives beside the manifest, so it goes with it rather than
+    // being left behind pointing at a host nothing will ask for.
+    try { unlinkSync(join(dir, LAUNCHER)); } catch { /* not there */ }
   }
   return { removed };
 }

@@ -23,18 +23,20 @@ export interface Check {
 
 const extensionRoot = (): string => join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Is the compiled host actually on disk, and executable by Chrome? */
+/**
+ * Is the compiled host on disk?
+ *
+ * Only that. It used to also require an execute bit on native-host.js, which was
+ * wrong and made a plain rebuild look broken: Chrome runs the launcher, and the
+ * launcher runs `node native-host.js`, so node reads this file rather than
+ * executing it. tsc writes 644 and that is correct. The execute bit that matters
+ * belongs to the launcher, and the registration check below tests that one.
+ */
 function checkBuild(): Check {
   const host = join(dirname(fileURLToPath(import.meta.url)), 'native-host.js');
-  if (!existsSync(host)) {
-    return { ok: false, label: 'build', detail: `${host} is missing`, fix: 'npm run build' };
-  }
-  // Chrome executes this path directly, so a missing execute bit is fatal and
-  // silent: Chrome simply never starts the host.
-  const executable = (statSync(host).mode & 0o111) !== 0;
-  return executable
-    ? { ok: true, label: 'build', detail: 'the host is built and executable' }
-    : { ok: false, label: 'build', detail: 'the host is not executable', fix: `chmod +x ${host}` };
+  return existsSync(host)
+    ? { ok: true, label: 'build', detail: 'the host is built' }
+    : { ok: false, label: 'build', detail: `${host} is missing`, fix: 'npm run build' };
 }
 
 /**
@@ -68,6 +70,12 @@ function checkRegistration(): Check {
     }
     if (!existsSync(manifest.path)) {
       problems.push(`${browser}: points at ${manifest.path}, which does not exist`);
+      continue;
+    }
+    // This is the file Chrome executes, so a missing execute bit is fatal and
+    // silent: Chrome simply never starts the host.
+    if ((statSync(manifest.path).mode & 0o111) === 0) {
+      problems.push(`${browser}: its launcher ${manifest.path} is not executable`);
       continue;
     }
     // The launcher names an absolute interpreter precisely so Chrome does not
