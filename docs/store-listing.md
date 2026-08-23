@@ -264,6 +264,37 @@ else.
 
     https://github.com/hamzahamidi/yoke/blob/main/PRIVACY.md
 
+## Test instructions tab
+
+The field a reviewer needs most, and the one most likely to sink this if it is
+left empty. Yoke's other half installs from npm, so an extension loaded into a
+clean profile reports "Not connected" and does nothing until that is done. A
+reviewer who cannot exercise it rejects it.
+
+**Username** and **Password**: leave both blank. There is no account, no login and
+no server to sign in to, so there is nothing to give.
+
+**Additional instructions** (500 characters, this is 449)
+
+    No login or account needed. Yoke has a second half: a local server, installed
+    separately, which is why the extension alone shows nothing.
+
+    1. Install Node 22 or later
+    2. npm install -g yoke-mcp
+    3. yoke install
+    4. Reload Yoke at chrome://extensions
+    5. Click the Yoke toolbar icon. It should read "Connected"
+
+    `yoke doctor` checks every link in the chain and names any broken one.
+
+    Setup and troubleshooting: https://github.com/hamzahamidi/yoke#readme
+
+Step 5 is the point of the whole thing: it lets a reviewer confirm the extension
+works without wiring up an MCP client at all. The panel reads the state of the
+native messaging connection, so "Connected" proves the chain end to end. Without
+the panel there was nothing a reviewer could look at, which is the rejection this
+listing was most exposed to.
+
 ## Graphic assets
 
 | Asset | Size | Required |
