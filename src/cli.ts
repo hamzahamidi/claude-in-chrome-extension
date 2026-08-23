@@ -7,22 +7,22 @@ import { fileURLToPath } from 'node:url';
 import { install, uninstall } from './install.js';
 import { endpointPath } from './socket-path.js';
 
-const USAGE = `chrome-live - browser automation in the Chrome you are already signed in to.
+const USAGE = `yoke - browser automation in the Chrome you are already signed in to.
 
 Usage:
-  chrome-live install     register the native messaging host with your browsers
-  chrome-live doctor      check every link in the chain and say which one is broken
-  chrome-live status      is the extension connected?
-  chrome-live uninstall   remove the host registration
-  chrome-live mcp         run the MCP server on stdio (what an MCP client spawns)
+  yoke install     register the native messaging host with your browsers
+  yoke doctor      check every link in the chain and say which one is broken
+  yoke status      is the extension connected?
+  yoke uninstall   remove the host registration
+  yoke mcp         run the MCP server on stdio (what an MCP client spawns)
 
 Getting set up, once:
   1. npm run build
-  2. chrome-live install
+  2. yoke install
   3. load extension/ at chrome://extensions with Developer mode on
-  4. chrome-live doctor            -> says which link is broken, if any
+  4. yoke doctor            -> says which link is broken, if any
   5. register the server with your MCP client:
-       command: chrome-live
+       command: yoke
        args:    ["mcp"]
 `;
 
@@ -92,6 +92,6 @@ async function main(): Promise<number> {
 main()
   .then((code) => { process.exitCode = code; })
   .catch((failure: unknown) => {
-    process.stderr.write(`chrome-live: ${failure instanceof Error ? failure.message : String(failure)}\n`);
+    process.stderr.write(`yoke: ${failure instanceof Error ? failure.message : String(failure)}\n`);
     process.exitCode = EXIT.UNAVAILABLE;
   });

@@ -1,9 +1,9 @@
 {
-  "name": "chrome-live-mcp",
+  "name": "yoke-mcp",
   "version": "0.1.0",
   "description": "MCP server for browser automation in the Chrome you are already signed in to, with no tab-group boundary.",
   "bin": {
-    "chrome-live": "dist/cli.js"
+    "yoke": "dist/cli.js"
   },
   "files": [
     "dist/",

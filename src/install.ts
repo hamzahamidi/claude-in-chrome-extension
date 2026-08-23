@@ -9,7 +9,10 @@ import { chmodSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'nod
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-export const HOST_NAME = 'com.hamzahamidi.chrome_live';
+// Reverse DNS on the GitHub namespace rather than a domain, because that is the
+// ownership actually demonstrable here. Chrome reads this string by exact match
+// from a file on the user's disk, so changing it breaks every existing install.
+export const HOST_NAME = 'io.github.hamzahamidi.yoke';
 
 /**
  * Derived from the public key pinned in the extension's manifest. Chrome computes
@@ -82,11 +85,11 @@ export function browserDirs(
 function writeLauncher(hostPath: string, nodePath: string = process.execPath): string {
   if (process.platform === 'win32') {
     // Chrome runs .bat through the shell, and %~dp0 keeps it relocatable.
-    const batch = join(dirname(hostPath), 'chrome-live-host.bat');
+    const batch = join(dirname(hostPath), 'yoke-host.bat');
     writeFileSync(batch, `@echo off\r\n"${nodePath}" "${hostPath}" %*\r\n`);
     return batch;
   }
-  const launcher = join(dirname(hostPath), 'chrome-live-host.sh');
+  const launcher = join(dirname(hostPath), 'yoke-host.sh');
   writeFileSync(launcher, `#!/bin/sh\nexec "${nodePath}" "${hostPath}" "$@"\n`, { mode: 0o755 });
   chmodSync(launcher, 0o755);
   return launcher;
@@ -94,7 +97,7 @@ function writeLauncher(hostPath: string, nodePath: string = process.execPath): s
 
 export const manifestFor = (hostPath: string): HostManifest => ({
   name: HOST_NAME,
-  description: 'chrome-live native messaging host',
+  description: 'yoke native messaging host',
   path: hostPath,
   type: 'stdio',
   allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],

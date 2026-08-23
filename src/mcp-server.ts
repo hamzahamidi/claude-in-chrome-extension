@@ -14,7 +14,7 @@ import { createInterface } from 'node:readline';
 
 import { ask, ExtensionUnavailable } from './socket-client.js';
 
-export const SERVER_NAME = 'chrome-live';
+export const SERVER_NAME = 'yoke';
 export const SERVER_VERSION = '0.1.0';
 export const PROTOCOL_VERSION = '2024-11-05';
 

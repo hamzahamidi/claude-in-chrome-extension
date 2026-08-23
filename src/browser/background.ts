@@ -19,7 +19,9 @@ import {
 } from './cdp.js';
 import { collectSnapshot, locateRef } from './snapshot.js';
 
-const HOST = 'com.hamzahamidi.chrome_live';
+// Must match HOST_NAME in ../install.ts exactly: Chrome matches the string
+// against the manifest filename it was registered under.
+const HOST = 'io.github.hamzahamidi.yoke';
 
 /** How long to wait for a navigation to report complete before giving up on it. */
 const NAVIGATE_TIMEOUT_MS = 20_000;
@@ -363,7 +365,7 @@ function connect(): void {
   try {
     port = chrome.runtime.connectNative(HOST);
   } catch (failure) {
-    console.log('chrome-live: native host unavailable', failure);
+    console.log('yoke: native host unavailable', failure);
     return;
   }
 

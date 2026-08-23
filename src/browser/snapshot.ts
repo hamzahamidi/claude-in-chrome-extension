@@ -96,7 +96,7 @@ export function collectSnapshot(maxElements: number): RawSnapshot {
 
   // Parked on the window so a later resolve can find the same elements without
   // re-walking the DOM, which would renumber everything.
-  (window as unknown as { __chromeLiveRefs?: Map<string, Element> }).__chromeLiveRefs = registry;
+  (window as unknown as { __yokeRefs?: Map<string, Element> }).__yokeRefs = registry;
   return { url: location.href, title: document.title, elements };
 }
 
@@ -107,7 +107,7 @@ export function collectSnapshot(maxElements: number): RawSnapshot {
  * that scrolled or reflowed since would otherwise be clicked in the wrong place.
  */
 export function locateRef(ref: string): { x: number; y: number; found: boolean } {
-  const registry = (window as unknown as { __chromeLiveRefs?: Map<string, Element> }).__chromeLiveRefs;
+  const registry = (window as unknown as { __yokeRefs?: Map<string, Element> }).__yokeRefs;
   const element = registry?.get(ref);
   if (!element) { return { x: 0, y: 0, found: false }; }
   element.scrollIntoView({ block: 'center', inline: 'center' });

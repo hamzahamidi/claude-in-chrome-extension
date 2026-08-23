@@ -88,14 +88,14 @@ function checkRegistration(): Check {
   }
 
   if (problems.length > 0) {
-    return { ok: false, label: 'registration', detail: problems.join('; '), fix: 'chrome-live install' };
+    return { ok: false, label: 'registration', detail: problems.join('; '), fix: 'yoke install' };
   }
   if (found.length === 0) {
     return {
       ok: false,
       label: 'registration',
       detail: 'no browser has the host registered',
-      fix: 'chrome-live install',
+      fix: 'yoke install',
     };
   }
   return { ok: true, label: 'registration', detail: `registered for ${found.join(', ')}` };

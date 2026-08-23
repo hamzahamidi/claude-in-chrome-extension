@@ -40,7 +40,7 @@ export function ask<K extends OperationName>(
   return new Promise<ResultOf<K>>((resolve, reject) => {
     if (process.platform !== 'win32' && !existsSync(socketPath)) {
       reject(new ExtensionUnavailable(
-        'the extension is not connected. Run `chrome-live install`, then load it in Chrome.'));
+        'the extension is not connected. Run `yoke install`, then load it in Chrome.'));
       return;
     }
 

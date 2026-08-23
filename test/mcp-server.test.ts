@@ -19,7 +19,7 @@ test('initialize answers what a client needs to proceed', async () => {
   };
   assert.equal(typeof init.protocolVersion, 'string');
   assert.equal(typeof init.capabilities.tools, 'object');
-  assert.equal(init.serverInfo.name, 'chrome-live');
+  assert.equal(init.serverInfo.name, 'yoke');
 });
 
 test('every tool is well formed', async () => {

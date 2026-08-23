@@ -12,8 +12,8 @@ import { join } from 'node:path';
  */
 export function endpointPath(): string {
   if (process.platform === 'win32') {
-    return `\\\\.\\pipe\\chrome-live-${process.env['USERNAME'] ?? 'user'}`;
+    return `\\\\.\\pipe\\yoke-${process.env['USERNAME'] ?? 'user'}`;
   }
   const base = process.env['XDG_RUNTIME_DIR'] ?? join(homedir(), '.cache');
-  return join(base, 'chrome-live', 'extension.sock');
+  return join(base, 'yoke', 'extension.sock');
 }
