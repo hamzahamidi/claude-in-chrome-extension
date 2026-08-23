@@ -193,7 +193,7 @@ From a checkout that has not been linked, replace `yoke` with `node dist/cli.js`
 4. A driven tab shows Chrome's debugging bar and cannot share its debugger slot with DevTools.
 5. Element references expire after navigation or a page render. Console and network history starts when yoke first attaches to that tab, not before.
 6. Screenshots capture the page viewport, not browser chrome such as the address bar or tab strip.
-7. Chrome's internal pages and the Chrome Web Store cannot be read through the page tools.
+7. Chrome's internal pages cannot be read or driven. Neither can the Chrome Web Store or the extensions gallery: Chrome refuses both `chrome.scripting` and `chrome.debugger` there, so no extension can automate them, including this one. Publishing an extension is therefore a manual job by design.
 
 ## Uninstall
 
