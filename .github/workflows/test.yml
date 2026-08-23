@@ -33,3 +33,11 @@ jobs:
       # Reads dist/install.js, which the tests step builds.
       - name: the extension manifest keeps its pinned id
         run: node scripts/check-extension-id.mjs
+      - name: the version constants agree
+        run: npm run check:versions
+      # Built here so the store packaging guards run on every push rather than
+      # only when someone is trying to ship. A zip the store would reject is
+      # worth finding now, not while waiting on a review queue.
+      - name: the store package builds and passes its own checks
+        if: runner.os != 'Windows'
+        run: npm run package

@@ -4,10 +4,21 @@ Everything the dashboard asks for, ready to paste. The dashboard cannot be
 automated: Chrome refuses both `chrome.scripting` and `chrome.debugger` on the
 extensions gallery, so every field here has to be entered by hand.
 
-Build both artefacts from the repository:
+Take the zip from the GitHub release rather than building it locally. Every `v*`
+tag builds it in CI and attaches it, with its SHA-256 in the run summary, so the
+package you upload is the one CI built and checked rather than whatever was in a
+working copy. Building locally still works and produces the same thing:
 
     npm run package      # dist/store/yoke-<version>.zip
     npm run screenshot   # docs/store/screenshot-1280x800.png
+
+There is deliberately no CI upload to the store. The `chromewebstore` OAuth scope
+is publisher wide with no per-item scoping, so a leaked credential could push code
+to every existing user through silent auto-update, into an extension holding
+`debugger` and `<all_urls>`, with nothing for them to decline. This repository
+holds no long-lived secrets (npm publishes over OIDC), and a manual review gates
+every store version anyway, so automating the upload would trade that for one
+saved click.
 
 `npm run package` handles the two things the store rejects an upload over.
 

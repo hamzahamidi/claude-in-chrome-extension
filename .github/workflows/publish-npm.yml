@@ -112,3 +112,51 @@ jobs:
       - name: publish to npm
         if: steps.published.outputs.already == 'false'
         run: npm publish
+
+  # The extension half. This deliberately does NOT upload to the Chrome Web
+  # Store, and the reason is the credential rather than the effort.
+  #
+  # The chromewebstore OAuth scope is publisher wide with no per-item scoping, so
+  # a leaked token can push code to every existing user of every extension this
+  # account owns, through silent auto-update, into an extension holding debugger
+  # and <all_urls>, with nothing for the victim to decline. This repository holds
+  # no long-lived secrets at all (npm goes over OIDC), and a manual review gates
+  # every store version anyway, so automating the upload would trade that
+  # posture for one saved click.
+  #
+  # What it does instead is build the package here and attach it to the release,
+  # so the zip a human uploads is the one CI built and checked, rather than
+  # whatever was sitting in a working copy.
+  store-package:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: build the store package
+        run: npm run package
+      - name: record what it is, so an upload can be checked against this
+        id: digest
+        run: |
+          zip=$(ls dist/store/*.zip)
+          echo "path=$zip" >> "$GITHUB_OUTPUT"
+          echo "### Chrome Web Store package" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$(basename "$zip")" >> "$GITHUB_STEP_SUMMARY"
+          sha256sum "$zip" >> "$GITHUB_STEP_SUMMARY"
+          unzip -Z1 "$zip" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The release may not exist yet: a tag can be pushed before its notes
+          # are written, so create it as a draft rather than failing here.
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes "Draft."
+          gh release upload "$GITHUB_REF_NAME" "${{ steps.digest.outputs.path }}" --clobber
