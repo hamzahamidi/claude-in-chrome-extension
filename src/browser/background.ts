@@ -81,6 +81,35 @@ async function navigate(args: Operations['navigate']['args']): Promise<Operation
   return { tabId, url: tab.url ?? url, title: tab.title ?? '', status };
 }
 
+/** The label on the group that marks agent-driven tabs. */
+const DEFAULT_GROUP_TITLE = 'agent';
+
+/**
+ * The group with this title, creating it only if none exists.
+ *
+ * Reuse is keyed on the title, which is the whole point: a fresh group per call
+ * is exactly how the bridge this replaces left four identical `Claude (MCP)`
+ * pills in the tab strip with no way to tell them apart. Safe to do freely
+ * because nothing addresses a tab through its group.
+ */
+async function ensureGroup(
+  tabIds: number[],
+  title: string,
+  color?: chrome.tabGroups.ColorEnum,
+): Promise<{ groupId: number; title: string }> {
+  const existing = await chrome.tabGroups.query({ title });
+  const found = existing[0];
+  const groupId = found === undefined
+    ? await chrome.tabs.group({ tabIds })
+    : await chrome.tabs.group({ tabIds, groupId: found.id });
+  await chrome.tabGroups.update(groupId, {
+    title,
+    ...(color === undefined ? {} : { color }),
+  });
+  const group = await chrome.tabGroups.get(groupId);
+  return { groupId, title: group.title ?? title };
+}
+
 async function openTab(args: Operations['openTab']['args']): Promise<Operations['openTab']['result']> {
   const created = await chrome.tabs.create({
     ...(args.url === undefined ? {} : { url: args.url }),
@@ -92,8 +121,20 @@ async function openTab(args: Operations['openTab']['args']): Promise<Operations[
   if (created.id !== undefined && args.url !== undefined) {
     await waitForLoad(created.id, NAVIGATE_TIMEOUT_MS);
   }
+  const title = args.groupTitle ?? DEFAULT_GROUP_TITLE;
+  let groupId = -1;
+  let groupTitle = title;
+  if (created.id !== undefined) {
+    // Grouping is cosmetic, so a failure here must not fail the open: the tab
+    // exists and is usable whether or not the strip shows a pill.
+    try {
+      const group = await ensureGroup([created.id], title, 'cyan');
+      groupId = group.groupId;
+      groupTitle = group.title;
+    } catch { groupId = -1; }
+  }
   const tab = created.id === undefined ? created : await chrome.tabs.get(created.id);
-  return { tab: describeTab(tab) };
+  return { tab: describeTab(tab), groupId, groupTitle };
 }
 
 /**
@@ -266,6 +307,22 @@ async function handle(message: Request): Promise<unknown> {
       const args = message.args as Operations['networkRequests']['args'];
       const { attachedNow } = await attach(args.tabId);
       return { tabId: args.tabId, requests: networkFor(args.tabId, args.limit ?? 100), attachedNow };
+    }
+
+    case 'groupTabs': {
+      const args = message.args as Operations['groupTabs']['args'];
+      const group = await ensureGroup(
+        args.tabIds,
+        args.title ?? DEFAULT_GROUP_TITLE,
+        args.color as chrome.tabGroups.ColorEnum | undefined,
+      );
+      return { groupId: group.groupId, title: group.title, tabIds: args.tabIds };
+    }
+
+    case 'ungroupTabs': {
+      const args = message.args as Operations['ungroupTabs']['args'];
+      await chrome.tabs.ungroup(args.tabIds);
+      return { tabIds: args.tabIds };
     }
 
     case 'release': {

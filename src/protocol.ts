@@ -42,10 +42,17 @@ export interface Operations {
     result: { tabId: number; url: string; title: string; status: 'complete' | 'timeout' };
   };
 
-  /** Open a new tab, optionally at a URL, optionally in the background. */
+  /**
+   * Open a new tab, optionally at a URL, optionally in the background.
+   *
+   * A tab opened here always joins a named group, created if absent and reused
+   * if present, so the tab strip shows plainly which tabs an automation is
+   * working in. Tabs the user already had are never moved into it: marking what
+   * we created is honest, rearranging someone's browser is not.
+   */
   openTab: {
-    args: { url?: string; active?: boolean; windowId?: number };
-    result: { tab: TabInfo };
+    args: { url?: string; active?: boolean; windowId?: number; groupTitle?: string };
+    result: { tab: TabInfo; groupId: number; groupTitle: string };
   };
 
   closeTab: { args: { tabId: number }; result: { closed: number } };
@@ -118,6 +125,25 @@ export interface Operations {
   networkRequests: {
     args: { tabId: number; limit?: number };
     result: { tabId: number; requests: NetworkRequest[]; attachedNow: boolean };
+  };
+
+  /**
+   * Put tabs in a group, creating or reusing one by title.
+   *
+   * Cosmetic only, and that is the point. Nothing here addresses a tab through
+   * its group, so a group can be added, renamed or removed at any time without
+   * anything losing track of anything. The bridge this replaces made the group
+   * load-bearing, which is why losing one stranded every tab inside it.
+   */
+  groupTabs: {
+    args: { tabIds: number[]; title?: string; color?: string };
+    result: { groupId: number; title: string; tabIds: number[] };
+  };
+
+  /** Take tabs out of whatever group they are in. Leaves the tabs open. */
+  ungroupTabs: {
+    args: { tabIds: number[] };
+    result: { tabIds: number[] };
   };
 
   /** Stop driving a tab: detaches the debugger and drops its buffers. */

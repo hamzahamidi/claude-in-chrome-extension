@@ -94,12 +94,15 @@ export const TOOLS = [
     name: 'open_tab',
     description:
       'Open a new tab, optionally at a URL. Opens in the background by default, because a '
-      + 'script should not pull focus away from what someone is doing.',
+      + 'script should not pull focus away from what someone is doing. The new tab joins a named '
+      + 'group, created if absent and reused if present, so the tab strip shows which tabs an '
+      + 'automation is working in. Tabs you already had are never moved into it.',
     inputSchema: {
       type: 'object',
       properties: {
         url: { type: 'string' },
         active: { type: 'boolean', default: false, description: 'Focus the new tab.' },
+        group_title: { type: 'string', default: 'agent', description: 'The label on the group.' },
       },
     },
   },
@@ -254,6 +257,39 @@ export const TOOLS = [
     },
   },
   {
+    name: 'group_tabs',
+    description:
+      'Put tabs into a named tab group, so it is visible in the tab strip which tabs an agent is '
+      + 'working in. Reuses an existing group with the same title rather than making a second one, '
+      + 'which is how a tab strip ends up with identical pills nobody can tell apart. Purely '
+      + 'cosmetic: nothing addresses a tab through its group, so grouping and ungrouping are '
+      + 'always safe and never lose track of a tab.',
+    inputSchema: {
+      type: 'object',
+      required: ['tab_ids'],
+      properties: {
+        tab_ids: { type: 'array', items: { type: 'number' } },
+        title: { type: 'string', description: 'The group label, e.g. "agent".' },
+        color: {
+          type: 'string',
+          enum: ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'],
+        },
+      },
+    },
+  },
+  {
+    name: 'ungroup_tabs',
+    description:
+      'Take tabs out of their group, leaving the tabs open. Removes the pill when the group '
+      + 'empties. This is also how to clear a leftover group from any extension, including ones '
+      + 'the Claude bridge stranded.',
+    inputSchema: {
+      type: 'object',
+      required: ['tab_ids'],
+      properties: { tab_ids: { type: 'array', items: { type: 'number' } } },
+    },
+  },
+  {
     name: 'release_tab',
     description:
       'Stop driving a tab: detaches the debugger, which removes the "started debugging" bar and '
@@ -344,11 +380,21 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
     if (url !== undefined && !/^https?:\/\//i.test(url)) {
       return failed(`open_tab takes an http or https URL, not ${JSON.stringify(url)}`);
     }
-    const { tab } = await ask('openTab', {
+    const groupTitle = args['group_title'] === undefined ? undefined : String(args['group_title']);
+    const opened = await ask('openTab', {
       ...(url === undefined ? {} : { url }),
       active: args['active'] === true,
+      ...(groupTitle === undefined ? {} : { groupTitle }),
     });
-    return text(`Opened tab ${tab.id} at ${shownUrl(tab.url)}\n${tab.title}`);
+    // Three outcomes, not two. A reply with no groupId at all comes from an
+    // extension build older than this server, and saying so beats printing the
+    // word "undefined" at whoever is reading.
+    const where = typeof opened.groupId !== 'number'
+      ? ' (grouping unknown: the loaded extension predates it, so reload it at chrome://extensions)'
+      : opened.groupId === -1
+        ? ' (not grouped: Chrome refused, which does not affect the tab)'
+        : ` in group ${JSON.stringify(opened.groupTitle)}`;
+    return text(`Opened tab ${opened.tab.id} at ${shownUrl(opened.tab.url)}${where}\n${opened.tab.title}`);
   }
 
   if (name === 'close_tab') {
@@ -492,6 +538,27 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
     if (seen.requests.length === 0) { return text(`${preface}No requests recorded.`); }
     const rows = seen.requests.map((r) => `${r.status ?? '...'}\t${r.method}\t${shownUrl(r.url)}`);
     return text(`${preface}${seen.requests.length} request(s)\nstatus\tmethod\turl\n${rows.join('\n')}`);
+  }
+
+  if (name === 'group_tabs' || name === 'ungroup_tabs') {
+    const raw = args['tab_ids'];
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return failed('tab_ids must be a non-empty array of tab ids from list_tabs');
+    }
+    const tabIds = raw.map((value) => asTabId(value));
+    if (name === 'ungroup_tabs') {
+      await ask('ungroupTabs', { tabIds });
+      return text(`Ungrouped ${tabIds.length} tab(s). They are still open.`);
+    }
+    const title = args['title'] === undefined ? undefined : String(args['title']);
+    const color = args['color'] === undefined ? undefined : String(args['color']);
+    const grouped = await ask('groupTabs', {
+      tabIds,
+      ...(title === undefined ? {} : { title }),
+      ...(color === undefined ? {} : { color }),
+    });
+    return text(`${tabIds.length} tab(s) are now in group ${grouped.groupId} `
+      + `${JSON.stringify(grouped.title)}.`);
   }
 
   if (name === 'release_tab') {
