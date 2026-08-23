@@ -1,5 +1,12 @@
 # yoke
 
+[![npm](https://img.shields.io/npm/v/yoke-mcp?color=0e8fa3)](https://www.npmjs.com/package/yoke-mcp)
+[![tests](https://github.com/hamzahamidi/yoke/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/hamzahamidi/yoke/actions/workflows/test.yml)
+[![provenance](https://img.shields.io/badge/npm-signed%20provenance-0e8fa3)](https://www.npmjs.com/package/yoke-mcp#provenance)
+[![node](https://img.shields.io/node/v/yoke-mcp)](https://nodejs.org)
+[![dependencies](https://img.shields.io/badge/runtime%20deps-0-0e8fa3)](package.json)
+[![license](https://img.shields.io/npm/l/yoke-mcp)](LICENSE)
+
 yoke lets an MCP client drive the Chrome profile you already use. It can work with every tab in every window, read pages, click and type, take screenshots, and inspect console and network activity. Your signed in sessions, cookies, extensions, and open tabs stay available.
 
 That is the reason to use yoke instead of starting a fresh browser through Playwright or Puppeteer. It works where you already work.
