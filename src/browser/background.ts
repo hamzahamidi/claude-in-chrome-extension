@@ -15,7 +15,7 @@
 import type { GroupInfo, Operations, Request, Response, TabInfo } from '../protocol.js';
 import {
   attach, clickAt, consoleFor, detach, evaluate, insertText, networkFor,
-  pressKey as dispatchKey, screenshot as capture, scrollBy,
+  pressKey as dispatchKey, screenshot as capture, scrollBy, attachedTabIds,
 } from './cdp.js';
 import { collectSnapshot, locateRef, type Located } from './snapshot.js';
 
@@ -236,10 +236,61 @@ async function readPage(args: Operations['readPage']['args']): Promise<Operation
   };
 }
 
+/**
+ * Operations that take control of a tab, so the strip should show it.
+ *
+ * Reading counts as control. Someone whose page is being read wants to know
+ * which tab that is just as much as someone whose page is being clicked.
+ *
+ * closeTab is deliberately absent (grouping a tab we are about to remove says
+ * nothing), and so are the list operations, which name no tab at all.
+ */
+const MARKS_TAB = new Set<Request['op']>([
+  'navigate', 'getPageText', 'readPage', 'evaluate', 'screenshot',
+  'click', 'typeText', 'pressKey', 'scroll', 'consoleMessages', 'networkRequests',
+]);
+
+/** Tabs already marked, so this costs three API calls per tab and not per call. */
+const marked = new Set<number>();
+chrome.tabs.onRemoved.addListener((tabId) => { marked.delete(tabId); });
+
+/**
+ * Puts a tab we are driving into the group, whether or not we opened it.
+ *
+ * The earlier rule was that a tab the user already had is never moved, on the
+ * grounds that rearranging someone's browser is not honest. That had it
+ * backwards: what the pill is for is showing which tabs are under automation,
+ * and a tab being driven silently is the case that actually needs marking.
+ * Provenance is not the point, control is.
+ *
+ * Never allowed to fail an operation. A tab that cannot be grouped is still a
+ * tab the caller asked to work with.
+ */
+async function markTab(tabId: number): Promise<void> {
+  if (marked.has(tabId)) { return; }
+  marked.add(tabId);
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    await ensureGroup([tabId], DEFAULT_GROUP_TITLE, tab.windowId, 'cyan');
+  } catch {
+    // Left in `marked` on purpose: retrying on every later call would mean a
+    // chrome.tabs.get per operation for a tab that cannot be grouped anyway.
+  }
+}
+
 async function handle(message: Request): Promise<unknown> {
+  const named = (message.args as { tabId?: number } | undefined)?.tabId;
+  if (named !== undefined && MARKS_TAB.has(message.op)) { await markTab(named); }
+
   switch (message.op) {
     case 'ping':
-      return { extension: chrome.runtime.getManifest().version };
+      return {
+        extension: chrome.runtime.getManifest().version,
+        // Reported so a forgotten attachment is visible. An attached tab wears
+        // Chrome's debugging bar and cannot be opened in DevTools, and nothing
+        // used to say how many were in that state.
+        attached: attachedTabIds(),
+      };
     case 'listTabs':
       return { tabs: (await chrome.tabs.query({})).map(describeTab) };
     case 'listGroups':

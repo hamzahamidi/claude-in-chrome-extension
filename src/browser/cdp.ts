@@ -193,6 +193,15 @@ export async function detach(tabId: number): Promise<boolean> {
   try { await chrome.debugger.detach({ tabId }); return true; } catch { return false; }
 }
 
+/**
+ * The tabs currently attached, so a caller can see what is still being held.
+ *
+ * An attached tab wears Chrome's debugging bar and refuses DevTools, so one
+ * forgotten after a job is finished is a visible nuisance with no other symptom.
+ */
+export const attachedTabIds = (): number[] =>
+  [...state.entries()].filter(([, tab]) => tab.attached).map(([tabId]) => tabId);
+
 export const consoleFor = (tabId: number, limit: number): ConsoleMessage[] =>
   (state.get(tabId)?.console ?? []).slice(-limit);
 

@@ -26,7 +26,11 @@ export interface GroupInfo {
 
 /** Every operation the extension implements, and what each one answers with. */
 export interface Operations {
-  ping: { args: Record<string, never>; result: { extension: string } };
+  /**
+   * Liveness, the extension's version, and every tab it currently holds a
+   * debugger on, so a forgotten attachment can be seen rather than guessed at.
+   */
+  ping: { args: Record<string, never>; result: { extension: string; attached: number[] } };
   listTabs: { args: Record<string, never>; result: { tabs: TabInfo[] } };
   listGroups: { args: Record<string, never>; result: { groups: GroupInfo[] } };
 
@@ -47,9 +51,12 @@ export interface Operations {
    *
    * A tab opened here always joins a named group, created if absent and reused
    * if present in that window, so the tab strip shows plainly which tabs an
-   * automation is working in. Tabs the user already had are never moved into it,
-   * and neither is this one moved between windows: marking what we created is
-   * honest, rearranging someone's browser is not.
+   * automation is working in. A tab is never moved between windows to achieve
+   * that.
+   *
+   * Any tab this drives or reads joins the group too, whether or not we opened
+   * it. What the pill is for is showing which tabs are under automation, and a
+   * tab being driven silently is the case that most needs marking.
    *
    * `groupId` is `-1` when grouping did not happen, and `groupTitle` is then the
    * title that was asked for rather than one any group carries.

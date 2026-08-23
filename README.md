@@ -123,7 +123,7 @@ Any tool that acts on an existing tab requires an explicit `tab_id` obtained fro
 
 Every tab opened by yoke goes into a cyan group titled `yoke`, so the tab strip names what is driving those tabs. Pass `group_title` to `open_tab` for a different label, which is worth doing when more than one agent works in the same browser. The extension creates that group when needed and reuses a group with the same title in the same window. Reuse comes from Chrome's current group state, so it still works after Chrome has stopped and restarted the extension service worker. You do not collect a row of identical group pills.
 
-Tabs that were already open are never moved into this group. Grouping is visual only, so no tool depends on it to find a tab. `ungroup_tabs` removes tabs from their group without closing them. When the group becomes empty, Chrome removes its pill.
+Any tab yoke drives or reads joins the group as well, whether or not it opened that tab, so the strip always shows what is under automation. Tabs are never moved between windows to achieve it. Grouping is visual only, so no tool depends on it to find a tab. `ungroup_tabs` removes tabs from their group without closing them. When the group becomes empty, Chrome removes its pill.
 
 ### URL redaction
 

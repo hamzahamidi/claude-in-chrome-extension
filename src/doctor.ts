@@ -126,8 +126,14 @@ function checkSocket(): Check {
 /** Does the extension itself answer? */
 async function checkPing(): Promise<Check> {
   try {
-    const { extension } = await ask('ping', {}, { timeoutMs: 3_000 });
-    return { ok: true, label: 'extension', detail: `answered, version ${extension}` };
+    const { extension, attached } = await ask('ping', {}, { timeoutMs: 3_000 });
+    // Reported because a tab left attached wears Chrome's debugging bar and
+    // refuses DevTools, and nothing used to say how many were in that state.
+    const held = attached?.length ?? 0;
+    const holding = held === 0
+      ? ''
+      : `, holding ${held} tab(s): ${attached.join(', ')}. Release them with release_tab.`;
+    return { ok: true, label: 'extension', detail: `answered, version ${extension}${holding}` };
   } catch (failure) {
     return {
       ok: false,
