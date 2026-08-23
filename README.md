@@ -4,6 +4,9 @@ A small Chrome extension that does one thing the [`cic`](https://github.com/hamz
 
 It reads the list of tabs and tab groups, and it moves one tab into one group. It never navigates, clicks, injects scripts or reads page content. Driving pages is the Claude in Chrome bridge's job, and keeping that line sharp is what makes these permissions defensible.
 
+What the bridge can and cannot do, measured rather than assumed, is written up in
+[MOTIVATION.md](MOTIVATION.md). It is the design rationale for this repository.
+
 ## Why it has to be an extension
 
 Tab groups are extension-only surface. Every other route was measured and closed:
