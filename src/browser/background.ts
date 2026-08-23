@@ -87,17 +87,22 @@ const DEFAULT_GROUP_TITLE = 'agent';
 /**
  * The group with this title, creating it only if none exists.
  *
- * Reuse is keyed on the title, which is the whole point: a fresh group per call
- * is exactly how the bridge this replaces left four identical `Claude (MCP)`
- * pills in the tab strip with no way to tell them apart. Safe to do freely
- * because nothing addresses a tab through its group.
+ * Reuse is keyed on the title within one window, which is the whole point: a
+ * fresh group per call is exactly how the bridge this replaces left four
+ * identical `Claude (MCP)` pills in the tab strip with no way to tell them
+ * apart. Safe to do freely because nothing addresses a tab through its group.
  */
 async function ensureGroup(
   tabIds: number[],
   title: string,
+  windowId: number,
   color?: chrome.tabGroups.ColorEnum,
 ): Promise<{ groupId: number; title: string }> {
-  const existing = await chrome.tabGroups.query({ title });
+  // Scoped to one window because a group lives in one: a TabGroup carries a
+  // single windowId. A query by title alone can match a group in a different
+  // window, and joining that one would haul the tab out of the window it was
+  // opened in, which is the rearranging this is meant to avoid.
+  const existing = await chrome.tabGroups.query({ title, windowId });
   const found = existing[0];
   const groupId = found === undefined
     ? await chrome.tabs.group({ tabIds })
@@ -128,7 +133,7 @@ async function openTab(args: Operations['openTab']['args']): Promise<Operations[
     // Grouping is cosmetic, so a failure here must not fail the open: the tab
     // exists and is usable whether or not the strip shows a pill.
     try {
-      const group = await ensureGroup([created.id], title, 'cyan');
+      const group = await ensureGroup([created.id], title, created.windowId, 'cyan');
       groupId = group.groupId;
       groupTitle = group.title;
     } catch { groupId = -1; }
@@ -311,9 +316,24 @@ async function handle(message: Request): Promise<unknown> {
 
     case 'groupTabs': {
       const args = message.args as Operations['groupTabs']['args'];
+      const members = await Promise.all(args.tabIds.map((id) => chrome.tabs.get(id)));
+      const first = members[0];
+      if (first === undefined) {
+        throw new Error('groupTabs needs at least one tab id');
+      }
+      // Refused rather than resolved by picking a window, because a group holds
+      // tabs from one window and the only way to satisfy this request would be
+      // to move the others there.
+      const windows = new Set(members.map((tab) => tab.windowId));
+      if (windows.size > 1) {
+        throw new Error(
+          `those ${args.tabIds.length} tabs are spread across ${windows.size} windows, and a group `
+          + 'holds tabs from one window. Group them a window at a time.');
+      }
       const group = await ensureGroup(
         args.tabIds,
         args.title ?? DEFAULT_GROUP_TITLE,
+        first.windowId,
         args.color as chrome.tabGroups.ColorEnum | undefined,
       );
       return { groupId: group.groupId, title: group.title, tabIds: args.tabIds };

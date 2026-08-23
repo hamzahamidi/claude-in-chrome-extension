@@ -46,9 +46,13 @@ export interface Operations {
    * Open a new tab, optionally at a URL, optionally in the background.
    *
    * A tab opened here always joins a named group, created if absent and reused
-   * if present, so the tab strip shows plainly which tabs an automation is
-   * working in. Tabs the user already had are never moved into it: marking what
-   * we created is honest, rearranging someone's browser is not.
+   * if present in that window, so the tab strip shows plainly which tabs an
+   * automation is working in. Tabs the user already had are never moved into it,
+   * and neither is this one moved between windows: marking what we created is
+   * honest, rearranging someone's browser is not.
+   *
+   * `groupId` is `-1` when grouping did not happen, and `groupTitle` is then the
+   * title that was asked for rather than one any group carries.
    */
   openTab: {
     args: { url?: string; active?: boolean; windowId?: number; groupTitle?: string };
@@ -128,7 +132,10 @@ export interface Operations {
   };
 
   /**
-   * Put tabs in a group, creating or reusing one by title.
+   * Put tabs in a group, creating or reusing one by title within their window.
+   *
+   * Refused when the named tabs span windows, because a group holds tabs from
+   * one window and honouring it would mean moving the rest.
    *
    * Cosmetic only, and that is the point. Nothing here addresses a tab through
    * its group, so a group can be added, renamed or removed at any time without
