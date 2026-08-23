@@ -87,7 +87,28 @@ jobs:
             if (!ok) { throw new Error("trusted publishing needs npm 11.5.1 or later, got " + process.argv[1]); }
           ' "$(npm --version)"
       - run: npm ci
+      - name: is this version already on the registry?
+        id: published
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          # `npm view pkg@missing-version` exits 0 with EMPTY stdout, and only a
+          # missing PACKAGE exits non-zero, so this tests the output. Testing the
+          # exit code instead reports "already published" forever.
+          found=$(npm view "$name@$version" version 2>/dev/null || true)
+          if [ -n "$found" ]; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is already on the registry, so there is nothing to publish"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is not published yet"
+          fi
       # Provenance is attached automatically for a public package published over
       # OIDC from a public repository, so there is no --provenance here.
+      #
+      # Skipped rather than failed when the version is already up, so re-pushing
+      # a tag is harmless and v0.1.0 (published by hand, before a trusted
+      # publisher could exist) does not leave a permanent red run.
       - name: publish to npm
+        if: steps.published.outputs.already == 'false'
         run: npm publish
