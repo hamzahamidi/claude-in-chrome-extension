@@ -12,8 +12,8 @@
 // so "any local process can connect" is not an acceptable posture; file
 // permissions are the cheapest correct answer. Windows gets a named pipe, where
 // the path namespace plays the same role.
-import { chmodSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
-import { createServer, type Server, type Socket } from 'node:net';
+import { chmodSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
+import { connect, createServer, type Server, type Socket } from 'node:net';
 import { dirname } from 'node:path';
 
 import { PROTOCOL, isResponse, type Request, type SocketReply, type SocketRequest } from './protocol.js';
@@ -56,7 +56,7 @@ function readFromChrome(onMessage: (message: unknown) => void): void {
   });
 }
 
-export function main(): void {
+export async function main(): Promise<void> {
   const socketPath = endpointPath();
   const waiting = new Map<number, (reply: SocketReply) => void>();
   let nextId = 1;
@@ -123,10 +123,7 @@ export function main(): void {
   });
 
   prepareDirectory(socketPath);
-  // A stale socket from a host Chrome killed would otherwise block the bind.
-  if (process.platform !== 'win32') {
-    try { unlinkSync(socketPath); } catch { /* nothing there */ }
-  }
+  await claimEndpoint(socketPath);
   server.listen(socketPath, () => {
     if (process.platform !== 'win32') { chmodSync(socketPath, 0o600); }
   });
@@ -134,6 +131,47 @@ export function main(): void {
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(signal, () => { cleanup(); process.exit(0); });
   }
+}
+
+/**
+ * Takes the socket path, but only if nobody live is using it.
+ *
+ * The path is per user, not per Chrome profile, so two profiles with this
+ * extension loaded each get their own host from Chrome and both want this
+ * endpoint. Unlinking unconditionally, which is what this did, let the second
+ * host steal it: the MCP server then reached whichever host bound last and drove
+ * a different browser profile than the one the person was looking at, with no
+ * error anywhere. Observed as `list_tabs` returning 0 while the visible window
+ * held 40 tabs.
+ *
+ * So a connect is attempted first. Succeeding means a live host owns the path
+ * and this one has nothing to offer: it exits, and Chrome surfaces that to the
+ * extension rather than the two of them trading the socket back and forth.
+ * Failing means the file is a corpse from a host Chrome killed, and unlinking it
+ * is right.
+ */
+async function claimEndpoint(socketPath: string): Promise<void> {
+  if (process.platform === 'win32') { return; }
+  if (!existsSync(socketPath)) { return; }
+
+  const alive = await new Promise<boolean>((resolve) => {
+    const probe = connect(socketPath)
+      .on('connect', () => { probe.destroy(); resolve(true); })
+      .on('error', () => resolve(false));
+    // A socket that neither connects nor errors is not a working host either.
+    setTimeout(() => { probe.destroy(); resolve(false); }, 500).unref();
+  });
+
+  if (alive) {
+    process.stderr.write(
+      `another yoke host already owns ${socketPath}, which happens when a second Chrome profile `
+      + 'has the extension loaded. This one is exiting rather than taking the endpoint from it, '
+      + 'because doing so would point the server at a different browser profile. Disable the '
+      + 'extension in the profile you are not driving.\n');
+    process.exit(0);
+  }
+
+  try { unlinkSync(socketPath); } catch { /* nothing there */ }
 }
 
 // Runs unconditionally, because this file exists only to be executed.
@@ -145,4 +183,7 @@ export function main(): void {
 // "Native host has exited" with nothing else to go on. An entry point that the
 // runner invokes with unpredictable arguments cannot detect itself from argv, so
 // it should not try.
-main();
+void main().catch((failure) => {
+  process.stderr.write(`yoke host failed to start: ${String(failure)}\n`);
+  process.exit(1);
+});
