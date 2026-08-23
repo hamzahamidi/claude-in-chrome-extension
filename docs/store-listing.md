@@ -102,103 +102,165 @@ the version.
 
 ## Privacy tab
 
-**Single purpose** (a single, clear purpose is required)
+**Single purpose** (1,000 characters, this is 347)
 
     Yoke gives a local Model Context Protocol client controlled access to the
-    user's own browser, so that automation tools and AI assistants can read and
-    operate pages in the browser session the user is already using.
+    user's own browser, so that developer tools and AI assistants can read and
+    operate pages in the browser session the user is already signed in to. Every
+    action names one tab explicitly, and the extension does nothing until a
+    client the user installed and started asks it to.
 
-**Permission justifications**
+**Permission justifications** (1,000 characters each; the form has one box per
+permission, labelled exactly as below, plus one for the host permission)
 
-`tabs`
+The form warns here that "because of the host permission, your extension may
+require an in-depth review that will delay publishing". Expect weeks.
 
-    Needed to list tabs across every window with their ids, and to open, navigate
-    and close a tab the client names. The client addresses every tab by id, so it
-    must be able to enumerate them.
+`tabs justification` (472)
 
-`tabGroups`
+    Yoke's client addresses every tab explicitly by id, so it must be able to
+    enumerate them: this permission provides the tab list across all windows with
+    each tab's id, title, URL and group. It is also what allows opening a tab,
+    navigating a named tab to a URL, and closing a named tab, which are the
+    operations a caller uses to set up the page it wants to work on. Nothing here
+    acts on an implied or active tab; a tab id from this list is required by every
+    other operation.
 
-    Used to put the tabs Yoke drives into one visibly named group, so the user can
-    see at a glance which tabs are under automation. It is a transparency feature,
-    and no functionality depends on the grouping.
+`tabGroups justification` (478)
 
-`nativeMessaging`
+    Used only for transparency. Tabs that Yoke drives or reads are placed in one
+    tab group titled "yoke", so the user can see at a glance which tabs are under
+    automation rather than discovering it. This permission provides creating that
+    group, reusing it, setting its title and colour, and removing tabs from it. No
+    functionality depends on the grouping: no operation locates a tab through its
+    group, and a user may rename or delete the group at any time without affecting
+    anything.
 
-    Yoke's other half is a local MCP server installed from npm. Native messaging
-    is the only mechanism by which an extension can communicate with a program on
-    the user's machine, and Chrome will only start such a host itself, so this
-    permission is what makes the product possible at all.
+`nativeMessaging justification` (538)
 
-`scripting`
+    Yoke is two halves: this extension and a local MCP server the user installs
+    from npm. Native messaging is the only mechanism by which an extension can
+    communicate with a program on the user's own machine, and Chrome will only
+    start such a host itself, so this permission is what makes the product
+    possible at all. The extension connects to exactly one host,
+    io.github.hamzahamidi.yoke, whose manifest on the user's disk allowlists this
+    extension's id. No data is sent anywhere else, and the extension makes no
+    network requests of its own.
 
-    Used to read the visible text of a page and to describe its interactive
-    elements (links, buttons, form fields) so a client can act on them by
-    reference. Injected only into a tab the client names, never automatically.
+`scripting justification` (584)
 
-`debugger`
+    Used to read a page the caller named: its visible text, and a description of
+    its interactive elements (links, buttons, form fields) so a client can act on
+    them by reference rather than by guessing screen coordinates. It is also used
+    to resolve such a reference back to an element at the moment of a click, so a
+    page that has scrolled is not clicked in the wrong place. Injection happens
+    only into a tab named by id in a specific request, never automatically, never
+    on a schedule, and never on page load. The contents of password fields are
+    deliberately excluded from what is reported.
 
-    Required for two things an extension cannot otherwise do. First, trusted
-    input: an event synthesised from a content script arrives with isTrusted
-    false and is ignored by many sites, so chrome.debugger is the only route to
-    input a page treats as real. Second, capturing a tab that is not in the
-    foreground, which chrome.tabs.captureVisibleTab cannot do. It also supplies
-    the console and network history Yoke reports. Attached only to a tab the
-    client names, and released on request.
+`debugger justification` (676)
 
-`<all_urls>`
+    Required for two things an extension cannot do any other way. First, trusted
+    input: an event synthesised from a content script arrives at the page with
+    isTrusted false and is ignored by many sites, so chrome.debugger is the only
+    route to a click or keystroke a page treats as genuine. Second, capturing a
+    tab that is not in the foreground, which chrome.tabs.captureVisibleTab cannot
+    do. It also supplies the console messages and network request metadata Yoke
+    reports for a tab being driven. It is attached only to a tab named in a
+    request, Chrome's own debugging notification is left visible rather than
+    suppressed, and the extension exposes an operation to detach on request.
+
+`Host permission justification` (500)
 
     Yoke cannot know in advance which sites its user will work on, so it cannot
-    ship a fixed host list. The user chooses the tab, per call, by id. Narrowing
-    this to per site permissions granted at first use is planned: see
-    https://github.com/hamzahamidi/yoke/blob/main/ROADMAP.md
+    ship a fixed host list: the user chooses the tab, one request at a time, by
+    id. The host permission is what allows reading and driving whichever page
+    that is. It is never used to act on a page the caller did not name, there is
+    no background or automatic access to any site, and nothing runs on page load.
+    Narrowing this to per-site permissions requested at first use is planned and
+    tracked publicly in the project's roadmap.
 
-**Data usage disclosures**
+**Are you using remote code?**
 
-Two of these are YES, and getting them wrong is worse than a rejection: the same
-tab carries the Limited Use certification, so a false answer is grounds for
-removal after publication rather than something you iterate on.
+Answer **Yes**, and this is a deliberate call rather than the default the form
+arrives with.
+
+The form defines remote code as "any JS or Wasm that is not included in the
+extension's package... including strings evaluated through eval()". None of
+Yoke's own code is remote: there are no external script tags, no modules loaded
+from a URL, and no eval in the extension's own context. But `run_javascript`
+evaluates a string that did not come from the package, and answering No would be
+a certification that contradicts a tool named after exactly that.
+
+The cost of Yes is a stricter review. The cost of a No that a reviewer disagrees
+with is removal after publication, which is not a trade worth taking.
+
+`Justification` (655)
+
+    No remotely hosted code is fetched or executed. All of the extension's own
+    code ships inside the package: there are no external script references, no
+    modules loaded from a URL, and no eval in the extension's own context.
+
+    This is answered Yes because Yoke exposes an operation that evaluates a
+    JavaScript string in a page, and that string does not come from the package.
+    It comes from the local MCP server the user installed, over native messaging,
+    at the user's direction, and it runs in a tab the caller named. It is the same
+    capability the DevTools console gives its user, offered to a program on the
+    same machine rather than to a person at a keyboard.
+
+**Data usage: tick exactly two boxes**
+
+Two of the nine are Yes, and getting this wrong is worse than a rejection: the
+same section carries the Limited Use certification, so a false answer is grounds
+for removal after publication rather than something you iterate on.
 
 Google's user data FAQ defines the test, and local processing does not exempt
 anything: "by 'handle' we mean collecting, transmitting, using, or sharing user
-data", and "extensions are required to disclose how they handle user data, even
+data", and extensions "are required to disclose how they handle user data, even
 when data is processed or stored locally on a user's device and is not
 transmitted to external servers or third parties". It names this case directly:
 "clipping or scraping content from a website that the user visits, such as taking
 screenshots or capturing data from a web page".
 
-| Question | Answer |
+| Checkbox | Tick |
 | --- | --- |
-| Personally identifiable information | No |
-| Health information | No |
-| Financial and payment information | No |
-| Authentication information | No |
-| Personal communications | No |
-| Location | No |
-| Web history | No |
-| User activity | **Yes** |
-| Website content | **Yes** |
+| Personally identifiable information | no |
+| Health information | no |
+| Financial and payment information | no |
+| Authentication information | no |
+| Personal communications | no |
+| Location | no |
+| Web history | no |
+| **User activity** | **yes** |
+| **Website content** | **yes** |
 
-`Website content` because `get_page_text`, `read_page` and `screenshot` capture
-page content and images. `User activity` because `read_network` reports request
-metadata and `read_console` reports console output, which is monitoring activity
-on the site.
+`User activity` is described in the form as "network monitoring, clicks, mouse
+position, scroll or keystroke logging". Yoke reports network requests and console
+output, and dispatches clicks and keystrokes, so this is plainly yes.
 
-`Web history` stays No: Yoke reports the tabs open right now, and never reads or
+`Website content` is "text, images, sounds, videos or hyperlinks". `get_page_text`,
+`read_page` and `screenshot` return exactly that.
+
+`Authentication information` stays no: password field values are deliberately
+excluded from what Yoke reports, so it does not handle them.
+
+`Web history` stays no: Yoke reports the tabs open right now and never reads or
 retains browsing history.
 
-Then certify all three statements, which do hold:
+**Certify all three**
 
-- I do not sell or transfer user data to third parties, outside of the approved
+They hold truthfully, because Yoke passes data only to the local client the user
+themselves connected, which is the item's single purpose, and sends it nowhere
+else.
+
+- I do not sell or transfer user data to third parties, apart from the approved
   use cases
-- I do not use or transfer user data for purposes that are unrelated to my
-  item's single purpose
-- I do not use or transfer user data to determine creditworthiness or for
-  lending purposes
+- I do not use or transfer user data for purposes that are unrelated to my item's
+  single purpose
+- I do not use or transfer user data to determine creditworthiness or for lending
+  purposes
 
-They hold because Yoke passes data only to the local client the user themselves
-connected, which is the item's single purpose, and sends it nowhere else.
-
-**Privacy policy URL**
+**Privacy policy URL** (required, since data is handled)
 
     https://github.com/hamzahamidi/yoke/blob/main/PRIVACY.md
 
