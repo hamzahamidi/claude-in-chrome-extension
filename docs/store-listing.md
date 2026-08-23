@@ -4,8 +4,15 @@ Everything the dashboard asks for, ready to paste. The dashboard cannot be
 automated: Chrome refuses both `chrome.scripting` and `chrome.debugger` on the
 extensions gallery, so every field here has to be entered by hand.
 
-Package to upload: build it with `npm run build`, then zip the contents of
-`extension/` (not the folder itself).
+Build both artefacts from the repository:
+
+    npm run package      # dist/store/yoke-<version>.zip
+    npm run screenshot   # docs/store/screenshot-1280x800.png
+
+The zip holds the contents of `extension/`, not the folder itself, which is the
+usual way this is rejected: a package whose manifest is not at the root is
+invalid. `npm run package` checks that before it finishes, and refuses when
+package.json and the extension manifest disagree on the version.
 
 ## Store listing tab
 
@@ -160,7 +167,7 @@ Then certify all three statements, which hold:
 | Asset | Size | Required |
 | --- | --- | --- |
 | Store icon | 128x128 PNG | yes, use `extension/icons/128.png` |
-| Screenshot | 1280x800 or 640x400 PNG | yes, at least one |
+| Screenshot | 1280x800 or 640x400 PNG | yes, use `docs/store/screenshot-1280x800.png` |
 | Small promo tile | 440x280 PNG | no |
 | Marquee promo tile | 1400x560 PNG | no |
 

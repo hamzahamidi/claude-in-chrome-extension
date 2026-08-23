@@ -9,11 +9,13 @@
     "dist/",
     "!dist/*.sh",
     "!dist/*.bat",
+    "!dist/store/",
     "extension/",
     "LICENSE",
     "README.md",
     "ROADMAP.md",
-    "MOTIVATION.md"
+    "MOTIVATION.md",
+    "PRIVACY.md"
   ],
   "engines": {
     "node": ">=22"
@@ -25,7 +27,9 @@
     "lint": "tsc --noEmit",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "check:versions": "node scripts/check-versions.mjs",
-    "prepublishOnly": "npm run clean && npm run build && npm run check:versions"
+    "prepublishOnly": "npm run clean && npm run build && npm run check:versions",
+    "package": "npm run build && node scripts/package-extension.mjs",
+    "screenshot": "node scripts/render-screenshot.mjs"
   },
   "keywords": [
     "mcp",
