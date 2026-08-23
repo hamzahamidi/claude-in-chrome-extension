@@ -1,0 +1,93 @@
+name: publish
+
+# A tag alone must not be able to ship. This runs on `v*`, proves the tag and the
+# version constants agree, runs the suites, then waits for a human to approve the
+# `npm` environment before anything reaches the registry.
+#
+# The FIRST publish of a package cannot happen here. npm will not let you
+# configure a trusted publisher for a package that does not exist yet, and there
+# is no token in this repository, so version 0.1.0 was published by hand from a
+# logged-in machine. This workflow owns every version after it.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: the tag and package.json must name the same version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version=$(node -p "require('./package.json').version")
+          echo "tag: $GITHUB_REF_NAME -> $tag_version"
+          echo "package.json: $package_version"
+          # Exact match. A tag that merely starts with the version would let
+          # v0.1.10 publish 0.1.1.
+          test "$tag_version" = "$package_version"
+      - run: npm ci
+      - name: the manifest and the server agree with package.json
+        run: npm run check:versions
+      - name: the extension keeps its pinned id
+        run: npm run build && node scripts/check-extension-id.mjs
+      - run: npm test
+      - name: pack exactly what would be published
+        run: npm pack --dry-run
+      - name: no machine-specific launcher in the tarball
+        run: |
+          # `yoke install` writes dist/yoke-host.sh containing absolute paths from
+          # whichever machine ran it. Publishing one would leak a home directory
+          # and point installers at a file they do not have.
+          if npm pack --dry-run 2>&1 | grep -E 'dist/.*\.(sh|bat)'; then
+            echo "a launcher script reached the tarball"
+            exit 1
+          fi
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Configured in repository settings with required reviewers, so approval is
+    # a person rather than a branch rule.
+    environment: npm
+    permissions:
+      contents: read
+      # Trusted publishing exchanges this short-lived OIDC token for the right to
+      # publish. There is no NPM_TOKEN in this repository.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node 22.14.0 or later.
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Node 22 ships npm 10.9.x, below the 11.5.1 trusted publishing needs, so
+      # this upgrade is required rather than defensive.
+      - name: npm new enough for trusted publishing
+        run: |
+          npm install -g npm@latest
+          node --version
+          npm --version
+          node -e '
+            const [major, minor] = process.versions.node.split(".").map(Number);
+            if (major < 22 || (major === 22 && minor < 14)) {
+              throw new Error("trusted publishing needs Node 22.14.0 or later, got " + process.versions.node);
+            }
+          '
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+            if (!ok) { throw new Error("trusted publishing needs npm 11.5.1 or later, got " + process.argv[1]); }
+          ' "$(npm --version)"
+      - run: npm ci
+      # Provenance is attached automatically for a public package published over
+      # OIDC from a public repository, so there is no --provenance here.
+      - name: publish to npm
+        run: npm publish

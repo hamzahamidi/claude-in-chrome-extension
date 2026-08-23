@@ -7,6 +7,8 @@
   },
   "files": [
     "dist/",
+    "!dist/*.sh",
+    "!dist/*.bat",
     "extension/",
     "LICENSE",
     "README.md",
@@ -20,7 +22,10 @@
     "build": "tsc && tsc -p tsconfig.extension.json",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.extension.json --noEmit",
     "test": "npm run build && node --test --experimental-strip-types test/*.test.ts",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "check:versions": "node scripts/check-versions.mjs",
+    "prepublishOnly": "npm run clean && npm run build && npm run check:versions"
   },
   "keywords": [
     "mcp",
@@ -32,7 +37,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hamzahamidi/claude-in-chrome-extension.git"
+    "url": "git+https://github.com/hamzahamidi/yoke.git"
   },
   "main": "dist/mcp-server.js",
   "devDependencies": {
@@ -40,5 +45,9 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   },
-  "type": "module"
+  "type": "module",
+  "homepage": "https://github.com/hamzahamidi/yoke#readme",
+  "bugs": {
+    "url": "https://github.com/hamzahamidi/yoke/issues"
+  }
 }
