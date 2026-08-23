@@ -22,6 +22,8 @@ interface TabState {
   network: NetworkRequest[];
   /** Whether this attachment was made by us, and so is ours to detach. */
   attached: boolean;
+  /** Whether the tab was successfully told to keep painting. See keepPainting. */
+  painting: boolean;
 }
 
 const state = new Map<number, TabState>();
@@ -29,7 +31,7 @@ const state = new Map<number, TabState>();
 const stateFor = (tabId: number): TabState => {
   let existing = state.get(tabId);
   if (!existing) {
-    existing = { console: [], network: [], attached: false };
+    existing = { console: [], network: [], attached: false, painting: false };
     state.set(tabId, existing);
   }
   return existing;
@@ -150,7 +152,38 @@ export async function attach(tabId: number): Promise<{ attachedNow: boolean }> {
     send(tabId, 'Network.enable'),
     send(tabId, 'Page.enable'),
   ]);
+  tab.painting = await keepPainting(tabId);
   return { attachedNow: true };
+}
+
+/**
+ * Makes a tab produce frames even while it is not the selected tab.
+ *
+ * Without this, input dispatched to a tab that has never rendered goes nowhere
+ * and reports success. Nothing rejects the event: RenderWidgetHostImpl's input
+ * filter has no visibility check at all. The renderer simply never runs the
+ * frame that would process it, because the compositor stops asking for frames
+ * when the widget is not visible.
+ *
+ * setFocusEmulationEnabled takes a visible capturer handle on the WebContents,
+ * which releases that deferral while leaving the tab unselected in the strip and
+ * the window untouched. It is what Playwright sends once per page for the same
+ * reason, and it survives navigation, so once per attachment is enough.
+ *
+ * The command is experimental, so a Chrome that refuses it must still work:
+ * a screenshot takes a weaker (hidden) capturer handle that also releases the
+ * deferral, and is the measured fallback.
+ */
+async function keepPainting(tabId: number): Promise<boolean> {
+  try {
+    await send(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+    return true;
+  } catch {
+    try {
+      await send(tabId, 'Page.captureScreenshot', { format: 'jpeg', quality: 1 });
+    } catch { /* Nothing else to try: input on this tab may not land. */ }
+    return false;
+  }
 }
 
 export async function detach(tabId: number): Promise<boolean> {

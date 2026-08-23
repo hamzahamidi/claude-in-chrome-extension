@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none"
+     stroke="#1098ad" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+  <!-- The grip bar with a horn turning up at each end, and the column below it.
+       Every centreline is a multiple of 8 and the stroke is 16, so at 16px each
+       line lands on a pixel boundary instead of straddling two. -->
+  <path d="M24 24V64h80V24"/>
+  <path d="M64 64v40"/>
+</svg>
