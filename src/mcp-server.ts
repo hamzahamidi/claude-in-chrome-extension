@@ -15,7 +15,7 @@ import { createInterface } from 'node:readline';
 import { ask, ExtensionUnavailable } from './socket-client.js';
 
 export const SERVER_NAME = 'yoke';
-export const SERVER_VERSION = '0.1.0';
+export const SERVER_VERSION = '0.1.1';
 export const PROTOCOL_VERSION = '2024-11-05';
 
 /**
@@ -105,7 +105,8 @@ export const TOOLS = [
       'Open a new tab, optionally at a URL. Opens in the background by default, because a '
       + 'script should not pull focus away from what someone is doing. The new tab joins a named '
       + 'group, created if absent and reused if present, so the tab strip shows which tabs an '
-      + 'automation is working in. Tabs you already had are never moved into it.',
+      + 'automation is working in. Any tab these tools then drive or read joins that group too, '
+      + 'whether or not it was opened here, so what is under automation is always visible.',
     inputSchema: {
       type: 'object',
       properties: {
