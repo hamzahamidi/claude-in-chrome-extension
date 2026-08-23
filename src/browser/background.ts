@@ -485,6 +485,10 @@ async function hasWindows(): Promise<boolean> {
   }
 }
 
+/** Grows on each failed attempt, resets once a connection holds. */
+let retryDelayMs = 1_000;
+const MAX_RETRY_MS = 60_000;
+
 function connect(): void {
   if (port) { return; }
   try {
@@ -493,6 +497,9 @@ function connect(): void {
     console.log('yoke: native host unavailable', failure);
     return;
   }
+  // Reset here rather than on the first message, because a port that opens is
+  // the thing being retried. A host that then exits raises the delay again.
+  retryDelayMs = 1_000;
 
   port.onMessage.addListener((message: Request) => {
     if (message?.id === undefined) { return; }
@@ -516,12 +523,22 @@ function connect(): void {
   // first call work without reloading the extension by hand.
   port.onDisconnect.addListener(() => {
     port = undefined;
-    setTimeout(connect, 1_000);
+    // Read, not ignored. Chrome logs "Unchecked runtime.lastError: Native host
+    // has exited" for every disconnect nobody inspects, so a profile that cannot
+    // get the host filled the extension's error list once per retry.
+    const reason = chrome.runtime.lastError?.message ?? 'the host disconnected';
+    retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_MS);
+    console.log(`yoke: ${reason}. Retrying in ${retryDelayMs / 1_000}s`);
+    // Backoff rather than a fixed second. The common reason for a host that
+    // exits immediately is another Chrome profile already owning the endpoint,
+    // which does not resolve by asking again quickly, and hammering it turned one
+    // problem into a log full of them.
+    setTimeout(connectWhenDrivable, retryDelayMs);
   });
 }
 
-chrome.runtime.onStartup.addListener(connect);
-chrome.runtime.onInstalled.addListener(connect);
+chrome.runtime.onStartup.addListener(() => { connectWhenDrivable(); });
+chrome.runtime.onInstalled.addListener(() => { connectWhenDrivable(); });
 /**
  * Connects only from a profile that has a window, and waits for one otherwise.
  *
