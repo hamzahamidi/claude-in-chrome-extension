@@ -9,10 +9,22 @@ Build both artefacts from the repository:
     npm run package      # dist/store/yoke-<version>.zip
     npm run screenshot   # docs/store/screenshot-1280x800.png
 
-The zip holds the contents of `extension/`, not the folder itself, which is the
-usual way this is rejected: a package whose manifest is not at the root is
-invalid. `npm run package` checks that before it finishes, and refuses when
-package.json and the extension manifest disagree on the version.
+`npm run package` handles the two things the store rejects an upload over.
+
+The zip holds the contents of `extension/`, not the folder itself: a package
+whose manifest is not at the root is invalid, and the dashboard says only that
+the package could not be uploaded.
+
+And the `key` field is stripped from the packaged manifest. The store refuses an
+upload that carries one, with "key field is not allowed in manifest" (measured,
+not guessed). The repository manifest keeps its key, because that is what pins
+the id `oceljemfocgfidhhdlbojkbkmlbfclna` for an unpacked load, which is the id
+the native messaging host allowlists. So the two manifests differ in exactly that
+one field, and the script reads the packed manifest back out of the archive to
+confirm it.
+
+It also refuses to build when package.json and the extension manifest disagree on
+the version.
 
 ## Store listing tab
 
