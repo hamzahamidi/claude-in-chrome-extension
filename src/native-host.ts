@@ -122,6 +122,36 @@ export async function main(): Promise<void> {
     connection.on('error', () => { /* a caller going away is not our failure */ });
   });
 
+  // Asked before the endpoint is claimed, because a profile with nothing in it
+  // must not take the endpoint from one the user is actually looking at.
+  //
+  // The check lives here rather than in the extension because the host is
+  // spawned fresh by Chrome for every connection, so it always runs current
+  // code, while an extension in another profile may be running whatever was on
+  // disk when that profile last loaded it. Relying on the extension to
+  // self-restrict only works once every profile has been reloaded, which is not
+  // something this can assume.
+  const drivable = await new Promise<boolean>((resolve) => {
+    const id = nextId++;
+    const timer = setTimeout(() => { waiting.delete(id); resolve(true); }, 3_000);
+    waiting.set(id, (reply) => {
+      clearTimeout(timer);
+      // An error here means the profile could not answer at all, which includes
+      // "No current window". Treated as not drivable.
+      if (!reply.ok) { resolve(false); return; }
+      const tabs = (reply.data as { tabs?: unknown[] } | undefined)?.tabs;
+      resolve(Array.isArray(tabs) && tabs.length > 0);
+    });
+    writeToChrome({ id, op: 'listTabs', args: {} as never });
+  });
+
+  if (!drivable) {
+    process.stderr.write(
+      'this Chrome profile has no tabs, so it is not claiming the yoke endpoint: a caller driving it '
+      + 'would be operating a browser nobody can see. Another profile with windows open can have it.\n');
+    process.exit(0);
+  }
+
   prepareDirectory(socketPath);
   await claimEndpoint(socketPath);
   server.listen(socketPath, () => {
