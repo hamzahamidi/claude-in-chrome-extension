@@ -11,6 +11,7 @@ const USAGE = `chrome-live - browser automation in the Chrome you are already si
 
 Usage:
   chrome-live install     register the native messaging host with your browsers
+  chrome-live doctor      check every link in the chain and say which one is broken
   chrome-live status      is the extension connected?
   chrome-live uninstall   remove the host registration
   chrome-live mcp         run the MCP server on stdio (what an MCP client spawns)
@@ -19,7 +20,7 @@ Getting set up, once:
   1. npm run build
   2. chrome-live install
   3. load extension/ at chrome://extensions with Developer mode on
-  4. chrome-live status            -> should say connected
+  4. chrome-live doctor            -> says which link is broken, if any
   5. register the server with your MCP client:
        command: chrome-live
        args:    ["mcp"]
@@ -63,6 +64,13 @@ async function main(): Promise<number> {
     for (const [browser, file] of removed) { process.stdout.write(`removed for ${browser}: ${file}\n`); }
     if (removed.length === 0) { process.stdout.write('nothing was registered\n'); }
     return EXIT.OK;
+  }
+
+  if (action === 'doctor') {
+    const { doctor, render } = await import('./doctor.js');
+    const checks = await doctor();
+    process.stdout.write(render(checks));
+    return checks.every((check) => check.ok) ? EXIT.OK : EXIT.UNAVAILABLE;
   }
 
   if (action === 'status') {
