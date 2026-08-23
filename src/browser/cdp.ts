@@ -112,10 +112,39 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
 // Chrome detaches when a tab closes, DevTools opens, or the user dismisses the
 // infobar. Forgetting the state keeps a later attach from looking already-done.
 chrome.debugger.onDetach.addListener((source) => {
-  if (source.tabId !== undefined) { state.delete(source.tabId); }
+  if (source.tabId !== undefined) {
+    state.delete(source.tabId);
+    badge(source.tabId, false);
+  }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => { state.delete(tabId); });
+
+/**
+ * Marks a tab in the browser's own chrome, per tab.
+ *
+ * The tab group tints a driven tab in the strip, which is the indicator that
+ * scales to many tabs at once, but it is quiet. A badge is the only other
+ * per-tab surface Chrome gives an extension: it appears on the toolbar icon for
+ * whichever tab is showing, so on a driven tab the marker is right there next to
+ * the address bar. Anything louder than these two means altering the page
+ * itself, which this project does not do to a page it was asked to read.
+ */
+const badge = (tabId: number, driving: boolean): void => {
+  const set = <T extends object>(call: (details: T) => Promise<void> | void, details: T): void => {
+    // Every one of these throws for a tab that has closed, which is a normal
+    // race rather than a fault: detach runs while a tab is going away.
+    try { void Promise.resolve(call(details)).catch(() => {}); } catch { /* tab gone */ }
+  };
+  if (driving) {
+    set(chrome.action.setBadgeText, { tabId, text: '●' });
+    set(chrome.action.setBadgeBackgroundColor, { tabId, color: '#1098ad' });
+    set(chrome.action.setTitle, { tabId, title: 'Yoke is driving this tab. Click to release it.' });
+    return;
+  }
+  set(chrome.action.setBadgeText, { tabId, text: '' });
+  set(chrome.action.setTitle, { tabId, title: 'Yoke' });
+};
 
 const send = <T>(tabId: number, method: string, params?: object): Promise<T> =>
   chrome.debugger.sendCommand({ tabId }, method, params) as Promise<T>;
@@ -153,6 +182,7 @@ export async function attach(tabId: number): Promise<{ attachedNow: boolean }> {
     send(tabId, 'Page.enable'),
   ]);
   tab.painting = await keepPainting(tabId);
+  badge(tabId, true);
   return { attachedNow: true };
 }
 
@@ -189,6 +219,7 @@ async function keepPainting(tabId: number): Promise<boolean> {
 export async function detach(tabId: number): Promise<boolean> {
   const tab = state.get(tabId);
   state.delete(tabId);
+  badge(tabId, false);
   if (!tab?.attached) { return false; }
   try { await chrome.debugger.detach({ tabId }); return true; } catch { return false; }
 }
