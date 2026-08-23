@@ -5,7 +5,7 @@
 // Both halves are why this exists: the id is pinned by the key in the
 // extension's manifest, and this manifest has to be written into each browser's
 // own directory.
-import { chmodSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -82,7 +82,35 @@ export function browserDirs(
  * is nearly everyone, and the failure surfaces only as "Native host has exited".
  * Baking in the interpreter that is running this install removes the guess.
  */
-function writeLauncher(hostPath: string, nodePath: string = process.execPath): string {
+/**
+ * A node path that survives a node upgrade, where one can be proven identical.
+ *
+ * process.execPath is exact but versioned: under Homebrew it reads
+ * /opt/homebrew/Cellar/node/26.5.1/bin/node, a path `brew upgrade node` deletes.
+ * The launcher would then point at nothing, and Chrome reports that only as
+ * "Native host has exited". A stable symlink to the same file does not move, so
+ * it is preferred, but only when realpath proves it resolves to the same binary:
+ * guessing a path that happens to exist could pin a different node version.
+ */
+function stableNodePath(): string {
+  const exact = process.execPath;
+  let resolved: string;
+  try { resolved = realpathSync(exact); } catch { return exact; }
+  const candidates = [
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
+    join(homedir(), '.volta', 'bin', 'node'),
+    '/usr/bin/node',
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (realpathSync(candidate) === resolved) { return candidate; }
+    } catch { /* not installed, try the next */ }
+  }
+  return exact;
+}
+
+function writeLauncher(hostPath: string, nodePath: string = stableNodePath()): string {
   if (process.platform === 'win32') {
     // Chrome runs .bat through the shell, and %~dp0 keeps it relocatable.
     const batch = join(dirname(hostPath), 'yoke-host.bat');
