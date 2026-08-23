@@ -1,8 +1,10 @@
-# What the bridge cannot do, and why this exists
+# What the bridge cannot do, and why yoke exists
 
 Observations of the Claude in Chrome extension and its MCP bridge (`claude --claude-in-chrome-mcp`), gathered while building [`claude-in-chrome-cli`](https://github.com/hamzahamidi/claude-in-chrome-cli) against it. Each entry says how it was established, because the interesting ones are counter-intuitive and several contradicted assumptions we started with.
 
 These are notes on fit, not a complaint. The bridge is built for an agent holding a conversation; most of what follows only bites a programmatic client, and a few are plain bugs worth reporting upstream.
+
+These measurements led to yoke, but yoke does not use that CLI or bridge. It is an independent Chrome extension and MCP server that works with any MCP client. Its local requirements are Node 22 or later and Chrome.
 
 ## The tab group boundary
 
@@ -34,7 +36,7 @@ These are notes on fit, not a complaint. The bridge is built for an agent holdin
 
 ## Tool-level gaps
 
-**`navigate` reports success for a URL it did not visit.** Given `file:///path/to/x.html` it answered `Navigated to https://file:///path/to/x.html` — it had prefixed `https://` to the whole thing and gone to a bogus address, while reporting success. `data:` and `about:blank` are rejected outright with `Invalid URL`. *Measured; the silent mangling is the one we would call a bug.*
+**`navigate` reports success for a URL it did not visit.** Given `file:///path/to/x.html` it answered `Navigated to https://file:///path/to/x.html`: it had prefixed `https://` to the whole thing and gone to a bogus address, while reporting success. `data:` and `about:blank` are rejected outright with `Invalid URL`. *Measured; the silent mangling is the one we would call a bug.*
 
 **Screenshots are the page viewport only, and always JPEG.** Browser chrome is never captured, so the tab strip cannot be read; and the `computer` tool exposes no format option, returning JPEG whatever the caller intends to name the file. *Measured: a 1538x784 JPEG against a 1512x949 window, and the tool schema has no format parameter.*
 
@@ -44,24 +46,28 @@ These are notes on fit, not a complaint. The bridge is built for an agent holdin
 
 **The bridge needs the Claude Code CLI installed, and the extension signed in to the same account.** `cic` spawns `claude --claude-in-chrome-mcp`, and a mismatch surfaces as `Browser extension is not connected`. Reasonable for Claude Code users; a hard floor for anyone who only wants browser automation from a shell. *Measured.*
 
-## What an extension of our own would change
+This is a dependency of the bridge being measured, not a yoke dependency. yoke does not spawn Claude Code and does not require an Anthropic account or sign in. It needs Node 22 or later and Chrome.
 
-Not a wish list. The point of writing these down is that a plain extension dissolves most of them, and it is worth being explicit about which:
+## What yoke changed
 
-| Limitation | Fixed by an extension? |
+The measurements supported building an independent extension and MCP server. The table records what that decision changed and what remains a browser limit:
+
+| Limitation | What yoke does |
 | --- | --- |
-| Tab group boundary | Yes. `chrome.tabs.query({})` sees every tab, so adoption stops being a problem to solve |
-| Nothing can adopt a tab | Yes, and the concept disappears |
-| No group API | Yes. `chrome.tabGroups` lists, names and recolours |
-| Group lost when its first tab closes | Yes. Group identity is Chrome's, not a binding we can drop |
-| Emptied groups undetectable | Yes, while the extension runs |
-| Tab list in every reply | Yes. We choose what a reply contains |
-| `<system-reminder>` in results | Yes |
-| Ids inside prose | Yes. Fields instead of sentences |
-| `navigate` mangling non-http URLs | Yes |
-| Screenshot format and chrome capture | Partly. Format yes; browser chrome is out of reach for any extension |
-| Needs Claude Code installed | Yes. The CLI would talk to the extension directly |
+| Tab group boundary | `chrome.tabs.query({})` sees every tab in every window. |
+| Nothing can adopt a tab | Every existing tab is addressable by explicit id, so adoption is no longer a separate operation. |
+| No group API | `chrome.tabGroups` lists groups, and yoke can group or ungroup named tabs. |
+| Group lost when its first tab closes | Group identity belongs to Chrome, and no tool addresses a tab through its group. |
+| Emptied groups undetectable | yoke queries Chrome's group state directly while a group exists. Emptying a group leaves its tabs open and removes the pill. |
+| Tab list in every reply | A tool returns the data for its own operation. It does not append the whole tab list. |
+| `<system-reminder>` in results | yoke adds no model-directed reminder text to tool results. |
+| Ids inside prose | The extension protocol carries ids as fields. MCP tool results are still concise text. |
+| `navigate` mangling non-http URLs | `navigate` and `open_tab` accept HTTP and HTTPS URLs and refuse other schemes without rewriting them. |
+| Screenshot format and chrome capture | PNG and JPEG are explicit options, and a background tab can be captured. Browser chrome remains out of reach. |
+| Needs Claude Code installed | yoke has no Claude Code dependency. Any MCP client can start `yoke mcp`. |
 
-What it would cost, equally plainly: `<all_urls>` and `debugger` permissions rather than `tabs` and `tabGroups`, a browser-automation surface to own and maintain, and the loss of the guarantee that a Claude Code session and a shell script go through one implementation. That last one is the whole reason `claude-in-chrome-cli` exists, so this stays a considered option rather than a plan.
+The cost is equally plain. The extension requests `tabs`, `tabGroups`, `nativeMessaging`, `scripting` and `debugger`, plus `host_permissions: ["<all_urls>"]`. That is broad access to a signed in browser. Trusted input and background tab screenshots require `debugger`, which brings Chrome's visible debugging bar and prevents DevTools from sharing an attached tab. Page reading requires `scripting` and access across sites. yoke also owns the browser automation surface and the three process bridge that Chrome's native messaging rules require.
 
-Meanwhile the smallest useful requests are upstream, with the measurements attached: `anthropics/claude-code#75901`.
+That trade was accepted. The extension and MCP server in this repository are the result, and they stand on their own.
+
+The measurements and the smallest useful upstream requests are attached at `anthropics/claude-code#75901`.

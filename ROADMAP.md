@@ -1,12 +1,14 @@
 # Roadmap
 
-Where this project is going, release by release: from reading the browser you are already signed in to, toward driving it, without a tab-group boundary and without a second browser.
+yoke is a Chrome extension and local MCP server for driving the browser you are already signed in to. It gives any MCP client one explicit interface to tabs, page content, trusted input, screenshots, console output and network activity, without a tab-group boundary or a second browser.
+
+This roadmap records the release sequence from reading that browser toward driving it.
 
 Each release is small, shippable on its own, and earns exactly the permissions it needs. The non-goals are part of the plan.
 
 ## Why this exists
 
-`claude-in-chrome-cli` was built to use the Claude in Chrome extension from a shell, and it works. What it cannot do is get past that extension's model: the bridge sees only tabs inside its own tab group, offers no group API, and loses a group permanently when its first tab closes. Those are documented with evidence in [MOTIVATION.md](MOTIVATION.md), and the measurements are attached upstream at `anthropics/claude-code#75901`.
+yoke exists because a useful browser tool should be able to work with the Chrome profile a person already uses, including every tab in every window. The measured bridge that preceded it could see only tabs inside its own group, offered no group API, and lost a group permanently when its first tab closed. [MOTIVATION.md](MOTIVATION.md) records the evidence, which is also attached upstream at `anthropics/claude-code#75901`.
 
 Tab groups are extension-only surface, proven by closing every alternative: page JavaScript sees a `chrome` object holding only `loadTimes, csi, app`; the DevTools Protocol has no tab-group surface across its 51 domains; Chrome's AppleScript dictionary has no group vocabulary. So the limitation is not something a client can work around. It has to be answered by an extension, which is this one.
 
@@ -30,7 +32,7 @@ Theme: prove the thesis, and nothing else.
 - TypeScript throughout, `strict` on, compiled to plain Node output with no runtime dependencies. Source in `src/`, extension in `extension/`, build to `dist/`.
 - The three-process shape, working end to end: the extension connects to a native messaging host that Chrome spawns, the host owns a unix socket in a 0700 directory, and the MCP server connects to that socket. Chrome will only ever spawn the host itself, so this hop is not optional.
 - Two tools: `list_tabs` across every window, and `list_tab_groups` including groups that hold no tabs. Permissions: `tabs` and `tabGroups`.
-- `chrome-live install` writes the host manifest for every Chromium-family browser present, `status` says whether the extension is connected, `mcp` runs the server on stdio.
+- `yoke install` writes the host manifest for every Chromium-family browser present, `status` says whether the extension is connected, `mcp` runs the server on stdio.
 - The extension id is pinned by a key in its manifest, because native messaging allowlists by id and an unpacked load would otherwise get a fresh one each time. The private key never enters the repository.
 - Offline tests for the MCP surface and the redaction, driven without a browser. CI on Node 22 and 24.
 
@@ -74,7 +76,7 @@ Non-goals: no recording, no macros, no scripting language. Composition belongs t
 
 Theme: installable by someone who is not us.
 
-- Chrome Web Store listing, with the privacy policy and permission justifications that `tabs` and `debugger` will be asked to defend. Review is typically days and can be weeks, which is why this project versions separately from anything that consumes it.
+- Chrome Web Store listing, with the privacy policy and permission justifications that `tabs` and `debugger` will be asked to defend. Review is typically days and can be weeks, so extension publication keeps its own release clock.
 - Reproducible build from a tagged commit, so the published bundle can be checked against source. An extension asking for these permissions has to be auditable, and "trust the listing" is not auditable.
 - Verify that the store honours the pinned `key` so the published id matches the one the native messaging manifest allowlists. If it does not, the host registration points at the wrong id and nothing connects, which is a failure worth finding before shipping rather than after.
 
@@ -90,12 +92,12 @@ Bug fixes only. Soak the debugger path, fix platform papercuts on Linux and Wind
 4. Every permission in the manifest traceable to a tool that needs it.
 5. Zero known cases where a raw URL escapes into output that did not ask for one.
 
+## Decisions
+
+**Project identity.** The name is `yoke`. Nothing in the project is specific to one vendor's assistant, so the old vendor-specific framing described the history rather than the software. Google's brand guidance reserves "Chrome" for Google's own products, which also made the previous `chrome-live` code name a poor choice for a possible store listing. The repository and project are `yoke`, the npm package is `yoke-mcp` because the bare package name was taken, the binary is `yoke`, the extension display name is `Yoke`, and the native messaging host id is `io.github.hamzahamidi.yoke`.
+
 ## Open decisions
 
 Recorded rather than guessed at, because they are not implementation details.
 
-**The name.** The repository is `claude-in-chrome-extension`, which describes what it grew out of rather than what it is. The code currently says `chrome-live`. Once this drives pages it is not "the Claude in Chrome extension's helper" in any sense, and the name should stop implying it.
-
-**Whether a CLI ships at all.** MCP alone serves every MCP client and is less to maintain. A thin CLI is what makes this usable from cron and shell pipelines, which was the original reason `claude-in-chrome-cli` existed. Invariant 3 allows one as a wrapper; whether it earns its keep is a question for after 0.2.
-
-**What happens to `claude-in-chrome-cli`.** It remains a correct, small client for the Claude bridge, useful to anyone who has that extension and wants it from a shell. It does not become a client of this project unless there is a reason beyond symmetry.
+**Whether browser operations get direct CLI commands.** The `yoke` binary already owns installation, diagnosis, status, removal and the MCP server entry point. MCP remains the browser interface. The open question is whether thin shell commands should expose those same operations for cron jobs and shell pipelines. Invariant 3 permits a wrapper, but not a second implementation.
