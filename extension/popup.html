@@ -1,0 +1,86 @@
+<meta charset="utf-8">
+<title>Yoke</title>
+<style>
+  :root {
+    --ink: #14181a; --muted: #55646a; --faint: #8b9a9e;
+    --ground: #ffffff; --panel: #f7f9f9; --line: #e2e8e9;
+    --cyan: #0e8fa3; --warn: #a4642c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8eaed; --muted: #9aa8ac; --faint: #6d7b7f;
+      --ground: #1c1f20; --panel: #24282a; --line: #33383a;
+      --cyan: #3cc7da; --warn: #e0a56d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; width: 320px; background: var(--ground); color: var(--ink);
+    font: 13px/1.5 system-ui, -apple-system, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+  }
+  header svg { width: 18px; height: 18px; }
+  header b { font-size: 14px; font-weight: 640; letter-spacing: -.01em; }
+  header span { margin-left: auto; color: var(--faint); font-size: 11px;
+    font-family: ui-monospace, Menlo, monospace; }
+  section { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+  .state { display: flex; align-items: baseline; gap: 7px; font-weight: 600; }
+  .state::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
+    transform: translateY(-1px);
+  }
+  .state.on::before { background: var(--cyan); }
+  .state.off::before { background: var(--faint); }
+  p { margin: 5px 0 0; color: var(--muted); }
+  .warn { color: var(--warn); font-weight: 600; }
+  code {
+    display: block; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 5px; padding: 8px 10px; margin-top: 8px;
+    font: 12px/1.7 ui-monospace, Menlo, monospace; color: var(--ink);
+    white-space: pre; overflow-x: auto;
+  }
+  button {
+    margin-top: 10px; width: 100%; padding: 7px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+  button:disabled { opacity: .55; cursor: default; }
+  a { color: var(--cyan); }
+</style>
+
+<header>
+  <svg viewBox="0 0 128 128" fill="none" stroke="var(--cyan)" stroke-width="16"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M24 24V64h80V24"/><path d="M64 64v40"/>
+  </svg>
+  <b>Yoke</b>
+  <span id="version"></span>
+</header>
+
+<section>
+  <div class="state off" id="state"><span id="state-text">Checking</span></div>
+  <p id="state-detail">Asking the local server whether it is running.</p>
+</section>
+
+<section id="setup" hidden>
+  <p>Yoke is two halves. Install the other one, then reload this extension:</p>
+  <code>npm install -g yoke-mcp
+yoke install</code>
+  <p><a href="https://github.com/hamzahamidi/yoke#readme" target="_blank">Setup guide and troubleshooting</a></p>
+</section>
+
+<section>
+  <div id="driving" hidden>
+    <div class="warn" id="driving-text"></div>
+    <p id="driving-detail"></p>
+    <button id="release">Release all tabs</button>
+  </div>
+  <p id="idle" hidden>No tabs are being driven. Yoke does nothing until a client asks it to.</p>
+</section>
+
+<script type="module" src="browser/popup.js"></script>

@@ -32,11 +32,13 @@ test('every tool is well formed', async () => {
   }
 });
 
-test('list_tabs promises the whole browser, which is the point of the project', () => {
+test('list_tabs promises every tab in every window, which is the point of the project', () => {
   const tabs = TOOLS.find((tool) => tool.name === 'list_tabs');
   assert.ok(tabs, 'list_tabs must exist');
+  // The scope, not the phrasing. This used to require the words "whole browser"
+  // and failed when the copy was reworded, although the promise was unchanged.
+  assert.match(tabs.description, /every open tab/);
   assert.match(tabs.description, /across all windows/);
-  assert.match(tabs.description, /whole browser/);
 });
 
 test('an unknown method throws and an unknown tool does not', async () => {

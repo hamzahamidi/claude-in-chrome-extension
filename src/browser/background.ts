@@ -18,6 +18,7 @@ import {
   pressKey as dispatchKey, screenshot as capture, scrollBy, attachedTabIds,
 } from './cdp.js';
 import { collectSnapshot, locateRef, type Located } from './snapshot.js';
+import type { PopupReply, PopupRequest } from './messages.js';
 
 // Must match HOST_NAME in ../install.ts exactly: Chrome matches the string
 // against the manifest filename it was registered under.
@@ -277,6 +278,37 @@ async function markTab(tabId: number): Promise<void> {
     // chrome.tabs.get per operation for a tab that cannot be grouped anyway.
   }
 }
+
+/**
+ * Answers the popup.
+ *
+ * Kept apart from handle(): those messages arrive from the native host and cross
+ * a trust boundary, these come from a page inside this extension. Sharing one
+ * dispatcher would let the host reach operations meant only for the popup.
+ */
+chrome.runtime.onMessage.addListener((message: PopupRequest, _sender, respond) => {
+  if (message?.kind === 'status') {
+    const reply: PopupReply = {
+      kind: 'status',
+      connected: port !== undefined,
+      version: chrome.runtime.getManifest().version,
+      host: HOST,
+      attached: attachedTabIds(),
+    };
+    respond(reply);
+    return false;
+  }
+  if (message?.kind === 'releaseAll') {
+    const held = attachedTabIds();
+    void Promise.all(held.map((tabId) => detach(tabId))).then(() => {
+      const reply: PopupReply = { kind: 'released', count: held.length };
+      respond(reply);
+    });
+    // Keeps the channel open, because respond is called after the detaches.
+    return true;
+  }
+  return false;
+});
 
 async function handle(message: Request): Promise<unknown> {
   const named = (message.args as { tabId?: number } | undefined)?.tabId;

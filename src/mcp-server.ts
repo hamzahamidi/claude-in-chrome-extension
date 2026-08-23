@@ -1,8 +1,8 @@
 // A stdio MCP server for the browser you are already signed in to.
 //
 // Register this with any MCP client and it gets browser automation against your
-// real Chrome profile, with no tab-group boundary: every tab in every window is
-// addressable, not only the ones inside some managed group.
+// real Chrome profile: every tab in every window is addressable, each one named
+// by id, and nothing is acted on that a caller did not name.
 //
 // Three processes, because Chrome's rules say so:
 //
@@ -15,7 +15,7 @@ import { createInterface } from 'node:readline';
 import { ask, ExtensionUnavailable } from './socket-client.js';
 
 export const SERVER_NAME = 'yoke';
-export const SERVER_VERSION = '0.1.1';
+export const SERVER_VERSION = '0.1.2';
 export const PROTOCOL_VERSION = '2024-11-05';
 
 /**
@@ -60,8 +60,8 @@ export const TOOLS = [
     name: 'list_tabs',
     description:
       'List every open tab in the browser, across all windows, with its id, title and URL. '
-      + 'Unlike a tab-group-scoped bridge this sees the whole browser, so any tab it returns can '
-      + 'be passed straight to the other tools. URLs are reduced to origin and path by default, '
+      + 'Any tab it returns can be passed straight to the other tools. '
+      + 'URLs are reduced to origin and path by default, '
       + 'because a raw URL can carry credentials, a session token or a query string; pass '
       + 'full_urls to opt out.',
     inputSchema: {

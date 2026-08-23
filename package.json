@@ -1,7 +1,7 @@
 {
   "name": "yoke-mcp",
-  "version": "0.1.1",
-  "description": "MCP server for browser automation in the Chrome you are already signed in to, with no tab-group boundary.",
+  "version": "0.1.2",
+  "description": "MCP server for browser automation in the Chrome you are already signed in to. Every tab in every window, addressed by id.",
   "bin": {
     "yoke": "dist/cli.js"
   },
