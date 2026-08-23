@@ -463,6 +463,28 @@ async function handle(message: Request): Promise<unknown> {
 /** Narrows a tab id that has already been validated by the server. */
 const tabId2 = (value: number): number => value;
 
+/**
+ * Whether this profile has anything to drive.
+ *
+ * A profile with no windows cannot be driven and cannot show anything: the tab
+ * group that tells the user which tabs are under automation has nowhere to
+ * appear, and list_tabs answers nothing. Chrome keeps such a profile's service
+ * worker alive, so without this check a windowless profile can win the endpoint
+ * and the caller drives an invisible browser. Observed exactly that way:
+ * list_tab_groups answered "No current window" while the visible window held 40
+ * tabs.
+ */
+async function hasWindows(): Promise<boolean> {
+  try {
+    return (await chrome.windows.getAll()).length > 0;
+  } catch {
+    // If the question cannot be answered, connecting is the lesser risk: a
+    // profile that will not connect is useless, and this check is a tiebreak
+    // rather than a safety property.
+    return true;
+  }
+}
+
 function connect(): void {
   if (port) { return; }
   try {
@@ -500,4 +522,20 @@ function connect(): void {
 
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
-connect();
+/**
+ * Connects only from a profile that has a window, and waits for one otherwise.
+ *
+ * The endpoint is per user rather than per profile, so whichever profile claims
+ * it decides which browser a caller drives. Preferring one the user can actually
+ * see is the difference between driving their browser and driving a ghost.
+ */
+function connectWhenDrivable(): void {
+  void hasWindows().then((yes) => {
+    if (yes) { connect(); return; }
+    console.log('yoke: this profile has no windows, so it is leaving the host to another profile');
+  });
+}
+
+chrome.windows.onCreated.addListener(() => { connectWhenDrivable(); });
+
+connectWhenDrivable();
