@@ -1,4 +1,4 @@
-// The one thing the CLI cannot do for itself.
+// The one thing a command line cannot do for itself.
 //
 // Tab groups are extension-only surface: page JavaScript sees a `chrome` object
 // holding nothing but loadTimes, csi and app; CDP has no tab-group domain at all
@@ -12,7 +12,7 @@
 // that line sharp is what makes this extension's permissions defensible.
 'use strict';
 
-const HOST = 'com.hamzahamidi.cic';
+const HOST = 'com.hamzahamidi.chrome_live';
 
 let port = null;
 

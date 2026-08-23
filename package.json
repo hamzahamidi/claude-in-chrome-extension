@@ -1,0 +1,44 @@
+{
+  "name": "chrome-live-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for browser automation in the Chrome you are already signed in to, with no tab-group boundary.",
+  "bin": {
+    "chrome-live": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "extension/",
+    "LICENSE",
+    "README.md",
+    "ROADMAP.md",
+    "MOTIVATION.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test --experimental-strip-types test/*.test.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "chrome",
+    "browser-automation",
+    "extension",
+    "tab-groups"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamzahamidi/claude-in-chrome-extension.git"
+  },
+  "main": "dist/mcp-server.js",
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "@types/chrome": "^0.0.270"
+  },
+  "type": "module"
+}

@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+// The one command: register the native host, check the connection, or run the
+// MCP server. Everything else this project does is a tool call.
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { install, uninstall } from './install.js';
+import { endpointPath } from './native-host.js';
+
+const USAGE = `chrome-live - browser automation in the Chrome you are already signed in to.
+
+Usage:
+  chrome-live install     register the native messaging host with your browsers
+  chrome-live status      is the extension connected?
+  chrome-live uninstall   remove the host registration
+  chrome-live mcp         run the MCP server on stdio (what an MCP client spawns)
+
+Getting set up, once:
+  1. npm run build
+  2. chrome-live install
+  3. load extension/ at chrome://extensions with Developer mode on
+  4. chrome-live status            -> should say connected
+  5. register the server with your MCP client:
+       command: chrome-live
+       args:    ["mcp"]
+`;
+
+const EXIT = { OK: 0, UNAVAILABLE: 3, USAGE: 64 } as const;
+
+async function main(): Promise<number> {
+  const action = process.argv[2];
+
+  if (action === 'mcp') {
+    // Hands over to the server, which owns stdio from here on.
+    const { main: serve } = await import('./mcp-server.js');
+    serve();
+    return EXIT.OK;
+  }
+
+  if (action === 'install') {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const result = install({ hostPath: join(here, 'native-host.js') });
+    for (const [browser, file] of result.written) {
+      process.stdout.write(`registered for ${browser}: ${file}\n`);
+    }
+    for (const [browser, reason] of result.skipped) {
+      process.stderr.write(`skipped ${browser}: ${reason}\n`);
+    }
+    if (result.platform === 'win32') {
+      process.stdout.write('On Windows the host is declared in the registry rather than on disk. '
+        + `Add a REG_SZ default value under HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${result.hostName} `
+        + 'pointing at the manifest file.\n');
+      return EXIT.OK;
+    }
+    if (result.written.length === 0) { return EXIT.UNAVAILABLE; }
+    process.stdout.write('\nNow load extension/ at chrome://extensions with Developer mode on.\n');
+    process.stdout.write(`It has to keep the id ${result.extensionId}, which the pinned key in its manifest guarantees.\n`);
+    return EXIT.OK;
+  }
+
+  if (action === 'uninstall') {
+    const { removed } = uninstall();
+    for (const [browser, file] of removed) { process.stdout.write(`removed for ${browser}: ${file}\n`); }
+    if (removed.length === 0) { process.stdout.write('nothing was registered\n'); }
+    return EXIT.OK;
+  }
+
+  if (action === 'status') {
+    const { available } = await import('./socket-client.js');
+    const reachable = await available();
+    process.stdout.write(`extension: ${reachable ? 'connected' : 'not reachable'}\n`);
+    process.stdout.write(`socket: ${endpointPath()}\n`);
+    if (!reachable) {
+      process.stdout.write('\nIf install has run and the extension is loaded, open chrome://extensions and '
+        + 'check its service worker is running. Chrome starts the host on demand.\n');
+    }
+    return reachable ? EXIT.OK : EXIT.UNAVAILABLE;
+  }
+
+  process.stdout.write(USAGE);
+  return action === undefined || action === '-h' || action === '--help' ? EXIT.OK : EXIT.USAGE;
+}
+
+main()
+  .then((code) => { process.exitCode = code; })
+  .catch((failure: unknown) => {
+    process.stderr.write(`chrome-live: ${failure instanceof Error ? failure.message : String(failure)}\n`);
+    process.exitCode = EXIT.UNAVAILABLE;
+  });
