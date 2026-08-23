@@ -1,0 +1,321 @@
+// The extension: the only place that can reach the browser's own APIs.
+//
+// It exists because tab groups and trusted browser control are extension-only
+// surface. Page JavaScript sees a `chrome` object holding nothing but
+// loadTimes, csi and app; the DevTools Protocol has no tab-group domain at all;
+// Chrome's AppleScript dictionary has no group vocabulary. So this is not a
+// convenience layer, it is the only route.
+//
+// Two rules shape everything here. Nothing acts on a tab it was not given the id
+// of, because "the active tab" means whatever the user happened to be looking
+// at. And it answers questions rather than deciding things: policy, redaction
+// and refusal live in the server, which is testable without a browser.
+// Type-only, so nothing is emitted and the extension bundle stays a single file.
+// Sharing the wire shapes with the server is what stops the two drifting.
+import type { GroupInfo, Operations, Request, Response, TabInfo } from '../protocol.js';
+import {
+  attach, clickAt, consoleFor, detach, evaluate, insertText, networkFor,
+  pressKey as dispatchKey, screenshot as capture, scrollBy,
+} from './cdp.js';
+import { collectSnapshot, locateRef } from './snapshot.js';
+
+const HOST = 'com.hamzahamidi.chrome_live';
+
+/** How long to wait for a navigation to report complete before giving up on it. */
+const NAVIGATE_TIMEOUT_MS = 20_000;
+
+let port: chrome.runtime.Port | undefined;
+
+/** chrome.tabs ids are SessionID::id(), the same numbers Chrome's session file records. */
+const describeTab = (tab: chrome.tabs.Tab): TabInfo => ({
+  id: tab.id ?? -1,
+  windowId: tab.windowId,
+  groupId: tab.groupId ?? -1,
+  title: tab.title ?? '',
+  url: tab.url ?? tab.pendingUrl ?? '',
+});
+
+const describeGroup = (group: chrome.tabGroups.TabGroup): GroupInfo => ({
+  id: group.id,
+  title: group.title ?? '',
+  color: group.color,
+  windowId: group.windowId,
+  collapsed: group.collapsed,
+});
+
+/**
+ * Waits for a tab to finish loading.
+ *
+ * Resolving on `status === 'complete'` rather than on the navigate call
+ * returning, because chrome.tabs.update resolves as soon as the navigation is
+ * *started*. Returning then would have every caller racing the page it just
+ * asked for.
+ */
+function waitForLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'timeout'> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (outcome: 'complete' | 'timeout'): void => {
+      if (settled) { return; }
+      settled = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      clearTimeout(timer);
+      resolve(outcome);
+    };
+    const listener = (changedId: number, change: chrome.tabs.TabChangeInfo): void => {
+      if (changedId === tabId && change.status === 'complete') { finish('complete'); }
+    };
+    const timer = setTimeout(() => finish('timeout'), timeoutMs);
+    chrome.tabs.onUpdated.addListener(listener);
+    // The load may already have finished between the update and this listener.
+    void chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === 'complete') { finish('complete'); }
+    }).catch(() => finish('timeout'));
+  });
+}
+
+async function navigate(args: Operations['navigate']['args']): Promise<Operations['navigate']['result']> {
+  const { tabId, url } = args;
+  await chrome.tabs.update(tabId, { url });
+  const status = await waitForLoad(tabId, args.timeoutMs ?? NAVIGATE_TIMEOUT_MS);
+  const tab = await chrome.tabs.get(tabId);
+  return { tabId, url: tab.url ?? url, title: tab.title ?? '', status };
+}
+
+async function openTab(args: Operations['openTab']['args']): Promise<Operations['openTab']['result']> {
+  const created = await chrome.tabs.create({
+    ...(args.url === undefined ? {} : { url: args.url }),
+    // Defaults to a background tab: opening something in a script should not
+    // yank focus away from whatever the person is doing.
+    active: args.active ?? false,
+    ...(args.windowId === undefined ? {} : { windowId: args.windowId }),
+  });
+  if (created.id !== undefined && args.url !== undefined) {
+    await waitForLoad(created.id, NAVIGATE_TIMEOUT_MS);
+  }
+  const tab = created.id === undefined ? created : await chrome.tabs.get(created.id);
+  return { tab: describeTab(tab) };
+}
+
+/**
+ * The page's visible text.
+ *
+ * innerText rather than textContent, because textContent includes script and
+ * style bodies and ignores layout, so it returns something no reader would
+ * recognise as the page.
+ */
+async function getPageText(
+  args: Operations['getPageText']['args'],
+): Promise<Operations['getPageText']['result']> {
+  const { tabId } = args;
+  const max = args.maxChars ?? 200_000;
+  const [injected] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => ({
+      text: document.body?.innerText ?? '',
+      title: document.title,
+      url: location.href,
+    }),
+  });
+  const value = injected?.result as { text: string; title: string; url: string } | undefined;
+  if (!value) {
+    throw new Error(`nothing came back from tab ${tabId}; a chrome:// or Web Store page cannot be read`);
+  }
+  const truncated = value.text.length > max;
+  return {
+    tabId,
+    url: value.url,
+    title: value.title,
+    text: truncated ? value.text.slice(0, max) : value.text,
+    truncated,
+  };
+}
+
+/**
+ * Where a reference is, right now.
+ *
+ * Resolved in the page at the moment of use rather than taken from the snapshot,
+ * because a page that has scrolled since would otherwise be clicked in the wrong
+ * place, and the caller would have no way to tell.
+ */
+async function pointFor(tabId: number, ref: string): Promise<{ x: number; y: number }> {
+  const [found] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: locateRef,
+    args: [ref],
+  });
+  const point = found?.result as { x: number; y: number; found: boolean } | undefined;
+  if (!point?.found) {
+    throw new Error(
+      `${ref} is not on this page any more. Call read_page again: a navigation or a `
+      + 're-render invalidates every reference from the previous snapshot.');
+  }
+  return { x: point.x, y: point.y };
+}
+
+async function readPage(args: Operations['readPage']['args']): Promise<Operations['readPage']['result']> {
+  const { tabId } = args;
+  const max = args.maxElements ?? 200;
+  const [injected] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: collectSnapshot,
+    args: [max],
+  });
+  const snapshot = injected?.result as
+    { url: string; title: string; elements: Array<Operations['readPage']['result']['elements'][number] & { x: number; y: number }> }
+    | undefined;
+  if (!snapshot) {
+    throw new Error(`nothing came back from tab ${tabId}; Chrome's own pages cannot be read`);
+  }
+  // Coordinates stay inside the extension. A caller acts by reference.
+  const elements = snapshot.elements.map(({ x: _x, y: _y, ...rest }) => rest);
+  return {
+    tabId,
+    url: snapshot.url,
+    title: snapshot.title,
+    elements,
+    truncated: elements.length >= max,
+  };
+}
+
+async function handle(message: Request): Promise<unknown> {
+  switch (message.op) {
+    case 'ping':
+      return { extension: chrome.runtime.getManifest().version };
+    case 'listTabs':
+      return { tabs: (await chrome.tabs.query({})).map(describeTab) };
+    case 'listGroups':
+      return { groups: (await chrome.tabGroups.query({})).map(describeGroup) };
+    case 'navigate':
+      return navigate(message.args as Operations['navigate']['args']);
+    case 'openTab':
+      return openTab((message.args ?? {}) as Operations['openTab']['args']);
+    case 'closeTab': {
+      const { tabId } = message.args as Operations['closeTab']['args'];
+      await chrome.tabs.remove(tabId);
+      return { closed: tabId };
+    }
+    case 'getPageText':
+      return getPageText(message.args as Operations['getPageText']['args']);
+    case 'readPage':
+      return readPage(message.args as Operations['readPage']['args']);
+
+    case 'evaluate': {
+      const { tabId, expression } = message.args as Operations['evaluate']['args'];
+      const outcome = await evaluate(tabId, expression);
+      return { tabId, ...outcome };
+    }
+
+    case 'screenshot': {
+      const args = message.args as Operations['screenshot']['args'];
+      const format = args.format ?? 'png';
+      const shot = await capture(tabId2(args.tabId), format, args.quality);
+      return {
+        tabId: args.tabId,
+        format: shot.format,
+        base64: shot.base64,
+        bytes: Math.floor((shot.base64.length * 3) / 4),
+      };
+    }
+
+    case 'click': {
+      const args = message.args as Operations['click']['args'];
+      const point = await pointFor(args.tabId, args.ref);
+      await clickAt(args.tabId, point, args.button ?? 'left', args.clickCount ?? 1);
+      return { tabId: args.tabId, ref: args.ref, clicked: true };
+    }
+
+    case 'typeText': {
+      const args = message.args as Operations['typeText']['args'];
+      if (args.ref !== undefined) {
+        const point = await pointFor(args.tabId, args.ref);
+        await clickAt(args.tabId, point, 'left', 1);
+      }
+      await insertText(args.tabId, args.text);
+      if (args.pressEnter === true) { await dispatchKey(args.tabId, 'Enter'); }
+      return { tabId: args.tabId, typed: args.text.length };
+    }
+
+    case 'pressKey': {
+      const args = message.args as Operations['pressKey']['args'];
+      if (args.ref !== undefined) {
+        const point = await pointFor(args.tabId, args.ref);
+        await clickAt(args.tabId, point, 'left', 1);
+      }
+      await dispatchKey(args.tabId, args.key);
+      return { tabId: args.tabId, key: args.key };
+    }
+
+    case 'scroll': {
+      const args = message.args as Operations['scroll']['args'];
+      const point = args.ref === undefined
+        ? { x: 200, y: 300 }
+        : await pointFor(args.tabId, args.ref);
+      const dx = args.dx ?? 0;
+      const dy = args.dy ?? 400;
+      await scrollBy(args.tabId, point, dx, dy);
+      return { tabId: args.tabId, dx, dy };
+    }
+
+    case 'consoleMessages': {
+      const args = message.args as Operations['consoleMessages']['args'];
+      const { attachedNow } = await attach(args.tabId);
+      return { tabId: args.tabId, messages: consoleFor(args.tabId, args.limit ?? 100), attachedNow };
+    }
+
+    case 'networkRequests': {
+      const args = message.args as Operations['networkRequests']['args'];
+      const { attachedNow } = await attach(args.tabId);
+      return { tabId: args.tabId, requests: networkFor(args.tabId, args.limit ?? 100), attachedNow };
+    }
+
+    case 'release': {
+      const args = message.args as Operations['release']['args'];
+      return { tabId: args.tabId, released: await detach(args.tabId) };
+    }
+
+    default:
+      throw new Error(`unknown op ${String(message.op)}`);
+  }
+}
+
+/** Narrows a tab id that has already been validated by the server. */
+const tabId2 = (value: number): number => value;
+
+function connect(): void {
+  if (port) { return; }
+  try {
+    port = chrome.runtime.connectNative(HOST);
+  } catch (failure) {
+    console.log('chrome-live: native host unavailable', failure);
+    return;
+  }
+
+  port.onMessage.addListener((message: Request) => {
+    if (message?.id === undefined) { return; }
+    void handle(message)
+      .then((data) => {
+        const reply: Response = { id: message.id, ok: true, data };
+        port?.postMessage(reply);
+      })
+      .catch((thrown: unknown) => {
+        const reply: Response = {
+          id: message.id,
+          ok: false,
+          error: thrown instanceof Error ? thrown.message : String(thrown),
+        };
+        port?.postMessage(reply);
+      });
+  });
+
+  // An open port keeps the service worker alive, and a dropped port means the
+  // host went away. Reconnecting on a delay is what lets `install` followed by a
+  // first call work without reloading the extension by hand.
+  port.onDisconnect.addListener(() => {
+    port = undefined;
+    setTimeout(connect, 1_000);
+  });
+}
+
+chrome.runtime.onStartup.addListener(connect);
+chrome.runtime.onInstalled.addListener(connect);
+connect();

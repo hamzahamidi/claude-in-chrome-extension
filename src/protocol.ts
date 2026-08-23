@@ -29,6 +29,128 @@ export interface Operations {
   ping: { args: Record<string, never>; result: { extension: string } };
   listTabs: { args: Record<string, never>; result: { tabs: TabInfo[] } };
   listGroups: { args: Record<string, never>; result: { groups: GroupInfo[] } };
+
+  /**
+   * Navigate one tab, by id, and wait for the load to settle.
+   *
+   * `tabId` is never implied. There is no acting on the active tab because none
+   * was named: that is how a script ends up driving whatever the user happened
+   * to be looking at.
+   */
+  navigate: {
+    args: { tabId: number; url: string; timeoutMs?: number };
+    result: { tabId: number; url: string; title: string; status: 'complete' | 'timeout' };
+  };
+
+  /** Open a new tab, optionally at a URL, optionally in the background. */
+  openTab: {
+    args: { url?: string; active?: boolean; windowId?: number };
+    result: { tab: TabInfo };
+  };
+
+  closeTab: { args: { tabId: number }; result: { closed: number } };
+
+  /** The visible text of a page, by tab id. */
+  getPageText: {
+    args: { tabId: number; maxChars?: number };
+    result: { tabId: number; url: string; title: string; text: string; truncated: boolean };
+  };
+
+  /**
+   * The interactive elements of a page, each with a reference to act on.
+   *
+   * Coordinates are deliberately not the interface. A model that clicks at
+   * (412, 233) is guessing, and a page that reflows makes the guess wrong; a
+   * reference resolves to the element that was described.
+   */
+  readPage: {
+    args: { tabId: number; maxElements?: number };
+    result: {
+      tabId: number;
+      url: string;
+      title: string;
+      elements: ElementRef[];
+      truncated: boolean;
+    };
+  };
+
+  /** Run JavaScript in the page and return its value. */
+  evaluate: {
+    args: { tabId: number; expression: string; timeoutMs?: number };
+    result: { tabId: number; value: string; type: string; threw: boolean };
+  };
+
+  /** A screenshot, which works on a background tab because it goes through CDP. */
+  screenshot: {
+    args: { tabId: number; format?: 'png' | 'jpeg'; quality?: number };
+    result: { tabId: number; format: string; base64: string; bytes: number };
+  };
+
+  /** Click, by element reference rather than by coordinate. */
+  click: {
+    args: { tabId: number; ref: string; button?: 'left' | 'right' | 'middle'; clickCount?: number };
+    result: { tabId: number; ref: string; clicked: true };
+  };
+
+  /** Type into whatever holds focus, optionally focusing a reference first. */
+  typeText: {
+    args: { tabId: number; text: string; ref?: string; pressEnter?: boolean };
+    result: { tabId: number; typed: number };
+  };
+
+  pressKey: {
+    args: { tabId: number; key: string; ref?: string };
+    result: { tabId: number; key: string };
+  };
+
+  scroll: {
+    args: { tabId: number; dx?: number; dy?: number; ref?: string };
+    result: { tabId: number; dx: number; dy: number };
+  };
+
+  /** Console messages seen since this tab was first attached to. */
+  consoleMessages: {
+    args: { tabId: number; limit?: number };
+    result: { tabId: number; messages: ConsoleMessage[]; attachedNow: boolean };
+  };
+
+  /** Network requests seen since this tab was first attached to. */
+  networkRequests: {
+    args: { tabId: number; limit?: number };
+    result: { tabId: number; requests: NetworkRequest[]; attachedNow: boolean };
+  };
+
+  /** Stop driving a tab: detaches the debugger and drops its buffers. */
+  release: {
+    args: { tabId: number };
+    result: { tabId: number; released: boolean };
+  };
+}
+
+export interface ElementRef {
+  /** Opaque and stable for the life of the snapshot. */
+  ref: string;
+  role: string;
+  name: string;
+  tag: string;
+  value?: string;
+  disabled?: boolean;
+}
+
+export interface ConsoleMessage {
+  level: string;
+  text: string;
+  url?: string;
+  line?: number;
+  at: number;
+}
+
+export interface NetworkRequest {
+  method: string;
+  url: string;
+  status?: number;
+  type?: string;
+  at: number;
 }
 
 export type OperationName = keyof Operations;

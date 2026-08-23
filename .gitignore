@@ -5,3 +5,8 @@
 *.zip
 node_modules/
 dist/
+
+# Built from src/browser by `npm run build`. Chrome loads extension/, so the
+# output lands there, but it is not source.
+extension/browser/
+extension/protocol.js
