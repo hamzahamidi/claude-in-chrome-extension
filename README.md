@@ -119,9 +119,9 @@ Any tool that acts on an existing tab requires an explicit `tab_id` obtained fro
 
 `navigate` and `open_tab` accept HTTP and HTTPS URLs. New tabs open in the background unless the caller asks to focus one.
 
-### Agent tab groups
+### Tab groups
 
-Every tab opened by yoke goes into a cyan group titled `agent`. The extension creates that group when needed and reuses a group with the same title in the same window. Reuse comes from Chrome's current group state, so it still works after Chrome has stopped and restarted the extension service worker. You do not collect a row of identical group pills.
+Every tab opened by yoke goes into a cyan group titled `yoke`, so the tab strip names what is driving those tabs. Pass `group_title` to `open_tab` for a different label, which is worth doing when more than one agent works in the same browser. The extension creates that group when needed and reuses a group with the same title in the same window. Reuse comes from Chrome's current group state, so it still works after Chrome has stopped and restarted the extension service worker. You do not collect a row of identical group pills.
 
 Tabs that were already open are never moved into this group. Grouping is visual only, so no tool depends on it to find a tab. `ungroup_tabs` removes tabs from their group without closing them. When the group becomes empty, Chrome removes its pill.
 

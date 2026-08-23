@@ -83,8 +83,15 @@ async function navigate(args: Operations['navigate']['args']): Promise<Operation
   return { tabId, url: tab.url ?? url, title: tab.title ?? '', status };
 }
 
-/** The label on the group that marks agent-driven tabs. */
-const DEFAULT_GROUP_TITLE = 'agent';
+/**
+ * The label on the group holding tabs yoke opened.
+ *
+ * The tool's own name rather than a generic word: the pill exists to tell the
+ * person which thing is working in their browser, and "agent" answers that with
+ * nothing. Overridable per call, because someone running two of these at once
+ * needs to tell them apart.
+ */
+const DEFAULT_GROUP_TITLE = 'yoke';
 
 /**
  * The group with this title, creating it only if none exists.

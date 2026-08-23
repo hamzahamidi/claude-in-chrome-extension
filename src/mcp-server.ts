@@ -18,6 +18,15 @@ export const SERVER_NAME = 'yoke';
 export const SERVER_VERSION = '0.1.0';
 export const PROTOCOL_VERSION = '2024-11-05';
 
+/**
+ * The label on the group holding tabs yoke opened.
+ *
+ * Decided here rather than in the extension because it is policy, and policy
+ * belongs where it can be changed and tested without reloading a browser. The
+ * extension keeps the same value as a fallback, for a caller that names nothing.
+ */
+export const DEFAULT_GROUP_TITLE = 'yoke';
+
 export interface ToolResult {
   content: Array<{ type: 'text'; text: string }>;
   /** Present only for tools that return an image, such as screenshot. */
@@ -102,7 +111,11 @@ export const TOOLS = [
       properties: {
         url: { type: 'string' },
         active: { type: 'boolean', default: false, description: 'Focus the new tab.' },
-        group_title: { type: 'string', default: 'agent', description: 'The label on the group.' },
+        group_title: {
+          type: 'string',
+          default: 'yoke',
+          description: 'The label on the group. Defaults to yoke, so the tab strip names what is driving it.',
+        },
       },
     },
   },
@@ -269,7 +282,7 @@ export const TOOLS = [
       required: ['tab_ids'],
       properties: {
         tab_ids: { type: 'array', items: { type: 'number' } },
-        title: { type: 'string', description: 'The group label, e.g. "agent".' },
+        title: { type: 'string', description: 'The group label. Defaults to yoke.' },
         color: {
           type: 'string',
           enum: ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'],
@@ -380,11 +393,13 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
     if (url !== undefined && !/^https?:\/\//i.test(url)) {
       return failed(`open_tab takes an http or https URL, not ${JSON.stringify(url)}`);
     }
-    const groupTitle = args['group_title'] === undefined ? undefined : String(args['group_title']);
+    const groupTitle = args['group_title'] === undefined
+      ? DEFAULT_GROUP_TITLE
+      : String(args['group_title']);
     const opened = await ask('openTab', {
       ...(url === undefined ? {} : { url }),
       active: args['active'] === true,
-      ...(groupTitle === undefined ? {} : { groupTitle }),
+      groupTitle,
     });
     // Three outcomes, not two. A reply with no groupId at all comes from an
     // extension build older than this server, and saying so beats printing the
@@ -550,7 +565,7 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
       await ask('ungroupTabs', { tabIds });
       return text(`Ungrouped ${tabIds.length} tab(s). They are still open.`);
     }
-    const title = args['title'] === undefined ? undefined : String(args['title']);
+    const title = args['title'] === undefined ? DEFAULT_GROUP_TITLE : String(args['title']);
     const color = args['color'] === undefined ? undefined : String(args['color']);
     const grouped = await ask('groupTabs', {
       tabIds,
