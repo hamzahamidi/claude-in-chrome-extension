@@ -15,11 +15,27 @@ import { dirname, join, win32 as windowsPath } from 'node:path';
 export const HOST_NAME = 'io.github.hamzahamidi.yoke';
 
 /**
- * Derived from the public key pinned in the extension's manifest. Chrome computes
- * it the same way, so a mismatch means the extension was built with a different
- * key and native messaging will refuse to connect.
+ * Every extension id allowed to reach the host.
+ *
+ * A list because a published extension has a different id from an unpacked one,
+ * and both have to work. The id below is derived from the public key pinned in
+ * extension/manifest.json, which is what an unpacked load uses. The Chrome Web
+ * Store assigns its own id from a key it generates: per Chrome's documentation
+ * the key flows the other way, and you "copy the public key from the Dashboard's
+ * Package tab" into the manifest afterwards, so a store id cannot be predicted
+ * or chosen in advance.
+ *
+ * Native messaging allowed_origins is documented as a list of extensions, with
+ * wildcards explicitly not allowed, so the store id is appended here when the
+ * listing exists and both installs keep working. Getting that wrong is silent:
+ * Chrome refuses the connection and says nothing.
  */
-export const EXTENSION_ID = 'oceljemfocgfidhhdlbojkbkmlbfclna';
+export const EXTENSION_IDS: readonly string[] = [
+  'oceljemfocgfidhhdlbojkbkmlbfclna',
+];
+
+/** The unpacked id, which is the one the pinned key has to derive. */
+export const EXTENSION_ID = EXTENSION_IDS[0] as string;
 
 export interface HostManifest {
   name: string;
@@ -159,7 +175,7 @@ export const manifestFor = (hostPath: string): HostManifest => ({
   description: 'yoke native messaging host',
   path: hostPath,
   type: 'stdio',
-  allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
+  allowed_origins: EXTENSION_IDS.map((id) => `chrome-extension://${id}/`),
 });
 
 /**

@@ -9,7 +9,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { browserDirs, EXTENSION_ID, HOST_NAME, type HostManifest } from './install.js';
+import { browserDirs, EXTENSION_IDS, HOST_NAME, type HostManifest } from './install.js';
 import { endpointPath } from './socket-path.js';
 import { ask } from './socket-client.js';
 
@@ -88,8 +88,11 @@ function checkRegistration(): Check {
       problems.push(`${browser}: its launcher runs ${node}, which no longer exists`);
       continue;
     }
-    if (!manifest.allowed_origins.includes(`chrome-extension://${EXTENSION_ID}/`)) {
-      problems.push(`${browser}: allowlists ${manifest.allowed_origins.join(', ')}, not ${EXTENSION_ID}`);
+    const missing = EXTENSION_IDS.filter(
+      (id) => !manifest.allowed_origins.includes(`chrome-extension://${id}/`));
+    if (missing.length > 0) {
+      problems.push(
+        `${browser}: allowlists ${manifest.allowed_origins.join(', ')}, which is missing ${missing.join(', ')}`);
       continue;
     }
     found.push(browser);
