@@ -23,6 +23,10 @@
              margin-bottom:12px; font-weight:700; }
   .card p { font-size:15px; color:var(--muted); }
   code { font:13px/1.75 ui-monospace,Menlo,monospace; color:var(--ink); display:block; white-space:pre; }
+  .popup { position:absolute; right:64px; top:238px; width:320px; border-radius:10px;
+           border:1px solid var(--line); box-shadow:0 18px 44px rgba(20,24,26,.16); }
+  body { position:relative; }
+  .cols { max-width:760px; }
   .foot { margin-top:auto; display:flex; justify-content:space-between; align-items:baseline;
           border-top:1px solid var(--line); padding-top:18px; font-size:14px; color:var(--muted); }
   .mark { display:flex; align-items:center; gap:10px; font-weight:640; color:var(--ink); font-size:17px; }
@@ -53,8 +57,8 @@
       <p>Clicks and keystrokes a page cannot tell from yours, and screenshots of tabs in the background.</p>
     </div>
     <div class="card">
-      <h2>You can see it working</h2>
-      <p>Every tab it touches joins the cyan group above, so what is under automation is never a mystery.</p>
+      <h2>You can see what it holds</h2>
+      <p>The toolbar panel says whether the local server is answering, and which tabs are being driven.</p>
     </div>
     <div class="card">
       <h2>Nothing leaves your machine</h2>
@@ -62,6 +66,8 @@
 yoke install</code></p>
     </div>
   </div>
+
+  <img class="popup" src="popup.png" alt="The Yoke toolbar panel, showing a connected server and two tabs being driven">
 
   <div class="foot">
     <span class="mark">
