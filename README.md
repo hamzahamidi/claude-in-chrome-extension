@@ -60,7 +60,7 @@ In Chrome, Chromium, or Brave:
 
 In Edge, use `edge://extensions` and follow the same steps.
 
-The extension id must be `oceljemfocgfidhhdlbojkbkmlbfclna`. A public key in `extension/manifest.json` pins that id. The native host manifest allowlists it, so native messaging will refuse a build with a different id.
+An unpacked load gets the id `oceljemfocgfidhhdlbojkbkmlbfclna`, pinned by a public key in `extension/manifest.json`. A Chrome Web Store install gets a different one, `mebojgahcmmffbaonhnmmjhmbdbfbamm`, because an uploaded package may not carry a key and so cannot choose its id. `yoke install` allowlists both, so either install works. A build whose id is neither is refused by native messaging, which is the point of pinning it.
 
 The native messaging host id is `io.github.hamzahamidi.yoke`.
 

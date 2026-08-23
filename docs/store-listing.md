@@ -205,15 +205,13 @@ connected, which is the item's single purpose, and sends it nowhere else.
 Do this while the item is still a draft, because it is what keeps native
 messaging working.
 
-Open the item's **Package** tab and copy two things:
+Done for this listing. The item id is `mebojgahcmmffbaonhnmmjhmbdbfbamm`, and as
+predicted it is not `oceljemfocgfidhhdlbojkbkmlbfclna`: an upload may not carry a
+`key`, so it cannot choose its id. Both are in `EXTENSION_IDS` in
+`src/install.ts`, so `yoke install` allowlists both and either install works.
 
-1. The **item id**, a 32 letter string. It will NOT be
-   `oceljemfocgfidhhdlbojkbkmlbfclna`: the store assigns its own id, and per
-   Chrome's documentation for the `key` field the public key flows from the store
-   into the manifest rather than the other way.
-2. The **public key**.
-
-The id goes into `EXTENSION_IDS` in `src/install.ts`, alongside the existing one.
-`allowed_origins` is a list, so a source install and a store install both keep
-working. A store install with only the old id in the list fails silently: Chrome
-refuses the connection and reports nothing.
+One sequencing rule remains, and it is absolute: **the release carrying both ids
+must be on npm before the listing is visible to anyone.** A store install whose
+host manifest allowlists only the unpacked id fails silently, because Chrome
+refuses the connection and reports nothing on the server side. Anyone who already
+ran `yoke install` needs to run it again, since nothing else rewrites that file.

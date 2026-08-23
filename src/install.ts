@@ -31,7 +31,12 @@ export const HOST_NAME = 'io.github.hamzahamidi.yoke';
  * Chrome refuses the connection and says nothing.
  */
 export const EXTENSION_IDS: readonly string[] = [
+  // Derived from the key pinned in extension/manifest.json, so this is the id an
+  // unpacked load gets. scripts/check-extension-id.mjs asserts the two agree.
   'oceljemfocgfidhhdlbojkbkmlbfclna',
+  // Assigned by the Chrome Web Store when the listing was created, and not
+  // predictable: an upload may not carry a key, so it cannot choose its id.
+  'mebojgahcmmffbaonhnmmjhmbdbfbamm',
 ];
 
 /** The unpacked id, which is the one the pinned key has to derive. */
