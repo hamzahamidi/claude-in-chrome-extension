@@ -97,10 +97,24 @@ export interface Operations {
     result: { tabId: number; format: string; base64: string; bytes: number };
   };
 
-  /** Click, by element reference rather than by coordinate. */
+  /**
+   * Click, by element reference rather than by coordinate.
+   *
+   * `hit` is the only part of this a caller can trust as a statement about the
+   * page. CDP reports that an input event was dispatched and nothing about what
+   * received it, so the element under the point is read at the moment of
+   * dispatch: `self` or `nested` mean the click reaches the named element, and
+   * `covered` means something else was on top and probably took it instead.
+   */
   click: {
     args: { tabId: number; ref: string; button?: 'left' | 'right' | 'middle'; clickCount?: number };
-    result: { tabId: number; ref: string; clicked: true };
+    result: {
+      tabId: number;
+      ref: string;
+      dispatched: true;
+      hit: 'self' | 'nested' | 'covered' | 'nothing';
+      topmost?: string;
+    };
   };
 
   /** Type into whatever holds focus, optionally focusing a reference first. */

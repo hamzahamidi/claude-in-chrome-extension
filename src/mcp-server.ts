@@ -454,13 +454,27 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
   if (name === 'click') {
     const button = args['button'];
     const clickCount = typeof args['click_count'] === 'number' ? args['click_count'] : undefined;
-    await ask('click', {
+    const result = await ask('click', {
       tabId: asTabId(args['tab_id']),
       ref: String(args['ref'] ?? ''),
       ...(button === 'left' || button === 'right' || button === 'middle' ? { button } : {}),
       ...(clickCount === undefined ? {} : { clickCount }),
     });
-    return text(`Clicked ${String(args['ref'])}.`);
+    // Reported rather than asserted. A click that was dispatched underneath an
+    // overlay used to read exactly like one that worked.
+    if (result.hit === 'covered') {
+      return text(
+        `Dispatched a click at ${result.ref}, but ${result.topmost ?? 'another element'} was on top `
+        + 'of it at that point and most likely received it instead. Call read_page again and act on '
+        + 'what is actually in front, which is often a cookie or consent banner.');
+    }
+    if (result.hit === 'nothing') {
+      return text(
+        `Dispatched a click at ${result.ref}, but nothing was hit-testable at that point, so it `
+        + 'probably went nowhere. The element may be scrolled out of view or covered by a full '
+        + 'page overlay.');
+    }
+    return text(`Clicked ${result.ref}.`);
   }
 
   if (name === 'type_text') {

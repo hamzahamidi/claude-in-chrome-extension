@@ -17,7 +17,7 @@ import {
   attach, clickAt, consoleFor, detach, evaluate, insertText, networkFor,
   pressKey as dispatchKey, screenshot as capture, scrollBy,
 } from './cdp.js';
-import { collectSnapshot, locateRef } from './snapshot.js';
+import { collectSnapshot, locateRef, type Located } from './snapshot.js';
 
 // Must match HOST_NAME in ../install.ts exactly: Chrome matches the string
 // against the manifest filename it was registered under.
@@ -112,7 +112,11 @@ async function ensureGroup(
   // window, and joining that one would haul the tab out of the window it was
   // opened in, which is the rearranging this is meant to avoid.
   const existing = await chrome.tabGroups.query({ title, windowId });
-  const found = existing[0];
+  // Matched exactly rather than taken from the query, because query treats the
+  // title as a pattern: a caller passing "*" would otherwise adopt and rename
+  // whichever group it happened to match, which is the opposite of only ever
+  // touching what we were pointed at.
+  const found = existing.find((group) => group.title === title);
   const groupId = found === undefined
     ? await chrome.tabs.group({ tabIds })
     : await chrome.tabs.group({ tabIds, groupId: found.id });
@@ -192,19 +196,19 @@ async function getPageText(
  * because a page that has scrolled since would otherwise be clicked in the wrong
  * place, and the caller would have no way to tell.
  */
-async function pointFor(tabId: number, ref: string): Promise<{ x: number; y: number }> {
+async function pointFor(tabId: number, ref: string): Promise<Located> {
   const [found] = await chrome.scripting.executeScript({
     target: { tabId },
     func: locateRef,
     args: [ref],
   });
-  const point = found?.result as { x: number; y: number; found: boolean } | undefined;
+  const point = found?.result as Located | undefined;
   if (!point?.found) {
     throw new Error(
       `${ref} is not on this page any more. Call read_page again: a navigation or a `
       + 're-render invalidates every reference from the previous snapshot.');
   }
-  return { x: point.x, y: point.y };
+  return point;
 }
 
 async function readPage(args: Operations['readPage']['args']): Promise<Operations['readPage']['result']> {
@@ -276,7 +280,16 @@ async function handle(message: Request): Promise<unknown> {
       const args = message.args as Operations['click']['args'];
       const point = await pointFor(args.tabId, args.ref);
       await clickAt(args.tabId, point, args.button ?? 'left', args.clickCount ?? 1);
-      return { tabId: args.tabId, ref: args.ref, clicked: true };
+      // What was on top is reported rather than swallowed. CDP says an event was
+      // dispatched and nothing about what received it, so this is the only part
+      // of the answer that is a claim about the page.
+      return {
+        tabId: args.tabId,
+        ref: args.ref,
+        dispatched: true,
+        hit: point.hit ?? 'nothing',
+        ...(point.topmost === undefined ? {} : { topmost: point.topmost }),
+      };
     }
 
     case 'typeText': {
