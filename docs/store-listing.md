@@ -143,25 +143,39 @@ the version.
 
 **Data usage disclosures**
 
-Answer these as follows, which is accurate:
+Two of these are YES, and getting them wrong is worse than a rejection: the same
+tab carries the Limited Use certification, so a false answer is grounds for
+removal after publication rather than something you iterate on.
+
+Google's user data FAQ defines the test, and local processing does not exempt
+anything: "by 'handle' we mean collecting, transmitting, using, or sharing user
+data", and "extensions are required to disclose how they handle user data, even
+when data is processed or stored locally on a user's device and is not
+transmitted to external servers or third parties". It names this case directly:
+"clipping or scraping content from a website that the user visits, such as taking
+screenshots or capturing data from a web page".
 
 | Question | Answer |
 | --- | --- |
-| Collects personally identifiable information | No |
-| Collects health information | No |
-| Collects financial and payment information | No |
-| Collects authentication information | No |
-| Collects personal communications | No |
-| Collects location | No |
-| Collects web history | No |
-| Collects user activity | No |
-| Collects website content | No |
+| Personally identifiable information | No |
+| Health information | No |
+| Financial and payment information | No |
+| Authentication information | No |
+| Personal communications | No |
+| Location | No |
+| Web history | No |
+| User activity | **Yes** |
+| Website content | **Yes** |
 
-Yoke transmits nothing off the machine and stores nothing beyond an in-memory
-console and network buffer that dies with the tab. Data passes to the local
-client the user connected, which is not collection by the extension.
+`Website content` because `get_page_text`, `read_page` and `screenshot` capture
+page content and images. `User activity` because `read_network` reports request
+metadata and `read_console` reports console output, which is monitoring activity
+on the site.
 
-Then certify all three statements, which hold:
+`Web history` stays No: Yoke reports the tabs open right now, and never reads or
+retains browsing history.
+
+Then certify all three statements, which do hold:
 
 - I do not sell or transfer user data to third parties, outside of the approved
   use cases
@@ -169,6 +183,9 @@ Then certify all three statements, which hold:
   item's single purpose
 - I do not use or transfer user data to determine creditworthiness or for
   lending purposes
+
+They hold because Yoke passes data only to the local client the user themselves
+connected, which is the item's single purpose, and sends it nowhere else.
 
 **Privacy policy URL**
 

@@ -2,8 +2,14 @@
 
 Last updated: 23 August 2026
 
-Yoke sends nothing anywhere. There is no server, no account, no analytics, and no
-telemetry. Everything it does happens between processes on your own machine.
+Yoke handles a lot of what is on your screen, and sends none of it to us.
+
+There is no Yoke server, no account, no analytics and no telemetry. Every hop is
+between processes on your own machine. But "we receive nothing" is not the same
+as "nothing is handled", and the honest version is the second one: Yoke reads
+page content, captures screenshots and observes network activity when asked to,
+and hands all of it to the local client you connected. Where that client sends it
+next is the question worth asking, and it is answered below.
 
 ## What Yoke can see
 
