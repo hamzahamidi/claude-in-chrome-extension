@@ -1,6 +1,6 @@
 # Roadmap
 
-yoke is a Chrome extension and local MCP server for driving the browser you are already signed in to. It gives any MCP client one explicit interface to tabs, page content, trusted input, screenshots, console output and network activity, without a tab-group boundary or a second browser.
+yoke is a Chrome extension and local MCP server for driving the browser you are already signed in to. Every operation names an explicit tab id, every tab in every window is reachable, and it needs no second profile and no browser-wide debugging port. It gives any MCP client one interface to tabs, page content, trusted input, screenshots, console output and network activity.
 
 This roadmap records what has been built and what comes next. Each release is small, shippable on its own, and the non-goals are part of the plan.
 

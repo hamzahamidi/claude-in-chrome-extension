@@ -1,6 +1,6 @@
 {
   "name": "yoke",
-  "description": "Drive the Chrome you are already signed in to, from any MCP client.",
+  "description": "Drive the Chrome you are already signed in to: every tab in every window, addressed by tab id, with no second profile and no browser-wide debugging port.",
   "owner": {
     "name": "Hamza Hamidi"
   },
@@ -8,7 +8,7 @@
     {
       "name": "yoke",
       "source": "./plugins/yoke",
-      "description": "Drive your real, signed in Chrome: every tab in every window, page text and structure, trusted input, screenshots, console and network.",
+      "description": "Drive the Chrome you are already signed in to: every tab in every window, addressed by tab id, with no second profile and no browser-wide debugging port.",
       "category": "productivity"
     }
   ]

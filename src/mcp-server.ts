@@ -594,13 +594,10 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
   if (name === 'release_tab') {
     const released = await ask('release', { tabId: asTabId(args['tab_id']) });
     return text(released.released
-      // Says what detaching does and no more. Chrome's banner going away and
-      // DevTools becoming attachable follow from the one-client-per-tab rule
-      // rather than from anything Chrome documents, and the tab keeps its group:
+      // Says what detaching does and no more. The tab keeps its group because
       // releasing is not unmarking.
         ? `Released tab ${released.tabId}. The debugger is detached and this tab's console and `
-          + "network buffers are dropped. It stays in its group, and Chrome should stop showing "
-          + 'the debugging banner for it.'
+          + 'network buffers are dropped. It stays in its group.'
       : `Tab ${released.tabId} was not being driven.`);
   }
 
