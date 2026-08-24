@@ -12,7 +12,7 @@
 // undefined. It failed on all six runs it ever had, so the check it performs had
 // never once executed.
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 let allowlisted;
 try {
@@ -40,6 +40,18 @@ const derived = [...digest.subarray(0, 16)]
 
 if (derived !== allowlisted) {
   throw new Error(`manifest key derives id ${derived} but install.ts allowlists ${allowlisted}`);
+}
+
+// The extension bundle is gitignored but ships in the tarball, so a publish from
+// a tree that was not rebuilt would pair a stale extension with a current dist.
+// Checked here because this script already runs in CI and before every publish.
+const bundle = new URL('../extension/browser/background.js', import.meta.url);
+if (!existsSync(bundle)) {
+  throw new Error('extension/browser/background.js is missing. Run `npm run build` before packaging.');
+}
+const bundleVersion = readFileSync(bundle, 'utf8').match(/io\.github\.hamzahamidi\.yoke/);
+if (!bundleVersion) {
+  throw new Error('the built extension does not name the current native messaging host, so it is stale');
 }
 
 console.log(`manifest key derives the allowlisted id: ${derived}`);

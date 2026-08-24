@@ -56,9 +56,18 @@ The values of password fields are deliberately excluded from what Yoke reports
 about a page. The field is described so a client can type into it; its contents
 are not returned.
 
-URLs are reduced to origin and path in tool output by default, because query
-strings routinely carry session tokens. A client must opt in per call to receive
-a raw URL.
+URL fields in tool output are reduced to origin and path, because query strings
+routinely carry session tokens. `list_tabs` accepts `full_urls` to opt out of
+that, and it is the only tool that does: everywhere else the reduction is
+unconditional.
+
+Redaction covers URL fields and not whole payloads, which is worth stating
+plainly rather than leaving to be discovered. A page's own text comes back as it
+is, so a URL printed on the page arrives whole. So do console messages, and the
+value of any expression a caller evaluates, including `location.href` or
+`document.cookie`. Screenshots are pixels and are not filtered at all. The
+redaction stops Yoke from volunteering a URL, and it is not a filter on what a
+page can tell a caller that asks.
 
 ## Permissions and why each exists
 
