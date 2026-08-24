@@ -1,6 +1,6 @@
 {
   "name": "yoke",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Drive the Chrome you are already signed in to. Every tab in every window is addressable by id, with page text and structure, trusted clicks and typing, screenshots of background tabs, and console and network history. Requires the yoke extension loaded and the local host registered with yoke install.",
   "author": {
     "name": "Hamza Hamidi"
