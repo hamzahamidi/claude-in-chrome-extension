@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "yoke",
-      "source": ".",
+      "source": "./plugins/yoke",
       "description": "Drive your real, signed in Chrome: every tab in every window, page text and structure, trusted input, screenshots, console and network.",
       "category": "productivity"
     }
