@@ -155,8 +155,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The release may not exist yet: a tag can be pushed before its notes
-          # are written, so create it as a draft rather than failing here.
+          # Created published, with the tag's own annotation as the notes.
+          #
+          # This used to create a DRAFT with the body "Draft.", which was a trap:
+          # a draft is invisible on the releases page, so v0.1.3 shipped to npm
+          # while GitHub still showed v0.1.1 as the latest release and the store
+          # package sat on an unpublished draft nobody knew about. An automatic
+          # release carrying the tag message is worse prose than a hand-written
+          # one and infinitely better than one nobody can see. Edit the notes
+          # afterwards; the release is already correct about existing.
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes "Draft."
+            || gh release create "$GITHUB_REF_NAME" --verify-tag --notes-from-tag --title "$GITHUB_REF_NAME"
           gh release upload "$GITHUB_REF_NAME" "${{ steps.digest.outputs.path }}" --clobber
