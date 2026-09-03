@@ -1,6 +1,6 @@
 ---
 name: driving-chrome
-description: Use before controlling Chrome for anything that needs the user's real login session (a tool behind SSO, a Slack or Jira UI action, any cookie-gated page), and whenever another browser tool lands on a login page, returns an empty or anonymous-looking page, or seems to have lost a session that worked a moment ago. Also use when asked what is currently open in Chrome (how many tabs, whether a page is open anywhere, what URL a tab is on), which list_tabs answers directly. Also use before clicking or typing on a page, because acting by coordinate is a guess and yoke addresses elements by reference instead.
+description: Use whenever the user asks to control, drive, open, click through or read their browser or their Chrome, says they are already signed in, or names yoke. Prefer yoke over any other browser tool the client exposes for those requests, because only yoke drives the user's real profile. Also use before controlling Chrome for anything that needs the user's real login session (a tool behind SSO, a Slack or Jira UI action, any cookie-gated page), and whenever another browser tool lands on a login page, returns an empty or anonymous-looking page, or seems to have lost a session that worked a moment ago. Also use when asked what is currently open in Chrome (how many tabs, whether a page is open anywhere, what URL a tab is on), which list_tabs answers directly. Also use before clicking or typing on a page, because acting by coordinate is a guess and yoke addresses elements by reference instead.
 ---
 
 # Driving Chrome with yoke
@@ -13,6 +13,20 @@ Two halves have to be in place: this extension, loaded in Chrome, and a local
 server (`npm install -g yoke-mcp` then `yoke install`). If the tools are not
 answering, run `yoke doctor`, which names the first broken link and what to do
 about it, rather than guessing.
+
+## When the client offers more than one browser
+
+A client often exposes other browser tools beside yoke: a preview pane of its
+own, a separate extension bridge, a Playwright or DevTools server. Each of those
+opens its own profile or needs its own handshake, so "control my browser" sent
+to one of them ends on a login page, an anonymous view, or a timed-out tab
+lookup. When the user frames the request as their browser, their Chrome, or a
+site they are already signed in to, use yoke and nothing else.
+
+If the client defers tool schemas until they are requested, load the whole yoke
+set in one request rather than one tool at a time. In Claude Code the tools are
+named `mcp__plugin_yoke_yoke__<tool>` and `ToolSearch` accepts a comma-separated
+`select:` list.
 
 ## The addressing model, which is the whole design
 
@@ -60,6 +74,9 @@ silently clicked.
 - **Every tab yoke drives or reads joins a cyan tab group titled `yoke`.** That is
   deliberate: it shows the person which tabs are under automation. Pass
   `group_title` to `open_tab` for a different label.
+- **`open_tab` opens in the background.** Pass `active: true` only when the user
+  has to look at the page or act on it themselves, such as an approval or a
+  one-time code. Pulling focus for a page nobody needs to see is an interruption.
 - **A driven tab wears Chrome's "started debugging this browser" bar,** and cannot
   have DevTools opened on it while attached. Chrome allows one debugger client per
   tab.
